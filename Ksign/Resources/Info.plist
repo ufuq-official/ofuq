@@ -6,6 +6,13 @@
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).userTask.*</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- The local install server (Semi Local) serves the IPA over plain HTTP to 127.0.0.1.
+		     This lets iOS reach it without weakening security for any public host; arbitrary loads stay off. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
