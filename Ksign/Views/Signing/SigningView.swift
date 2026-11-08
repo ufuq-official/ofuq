@@ -24,6 +24,8 @@ struct SigningView: View {
 	@State private var _isLogsPresenting = false
 	@State private var _isSigning = false
 	@State private var _selectedPhoto: PhotosPickerItem? = nil
+	/// Set when the selected certificate only allows one app ID; the app is signed with that ID.
+	@State private var _lockedIdentifier: String?
 	@State var appIcon: UIImage?
 	
 	var signAndInstall: Bool = false
@@ -51,7 +53,19 @@ struct SigningView: View {
 		}
 		return appID.split(separator: ".").dropFirst().joined(separator: ".")
 	}
-	
+
+	/// Shows the bundle ID the app will really get when the certificate only allows one app ID
+	/// (SigningHandler enforces it either way), and undoes that when another certificate is picked.
+	private func _applyCertificateAppID() {
+		let appID = _selectedCert().flatMap { CertificateCheck.explicitAppID(for: $0) }
+		if let appID {
+			_temporaryOptions.appIdentifier = appID
+		} else if let locked = _lockedIdentifier, _temporaryOptions.appIdentifier == locked {
+			_temporaryOptions.appIdentifier = nil
+		}
+		_lockedIdentifier = appID
+	}
+
 	var app: AppInfoPresentable
 	
 	init(app: AppInfoPresentable, signAndInstall: Bool = false) {
@@ -125,6 +139,9 @@ struct SigningView: View {
 				}
 			}
 			.animation(.smooth, value: _isSigning)
+			.onChange(of: _temporaryCertificate) { _ in
+				_applyCertificateAppID()
+			}
 		}
 		.onAppear {
 			// ppq protection
@@ -170,6 +187,8 @@ struct SigningView: View {
 				
 				_temporaryOptions.appName = name
 			}
+
+			_applyCertificateAppID()
 		}
     }
 }
@@ -228,6 +247,10 @@ extension SigningView {
 						cert: cert
 					)
 				}
+			}
+		} footer: {
+			if let appID = _lockedIdentifier {
+				Text(.localized("This certificate only allows the app ID %@. The app is signed with it and its extensions are removed, because the certificate cannot cover them. Installing another app with this certificate replaces this one.", arguments: appID))
 			}
 		}
 	}
