@@ -101,9 +101,11 @@ final class StoreInstaller: ObservableObject {
 			return
 		}
 
-		let options = OptionsManager.shared.options
+		// Installing needs an app signed with a real certificate: iOS refuses an unsigned or ad-hoc app
+		// ("integrity could not be verified"). So the store always signs with the selected certificate,
+		// even when "Only modify" or "Adhoc Signing" is turned on in the signing options.
 		let certificate = Self.selectedCertificate()
-		guard certificate != nil || options.doAdhocSigning || options.onlyModify else {
+		guard let certificate else {
 			_alert(
 				title: .localized("No Certificate"),
 				message: .localized("Please go to settings and import a valid certificate")
@@ -111,10 +113,8 @@ final class StoreInstaller: ObservableObject {
 			return
 		}
 
-		// Ad-hoc signing and "only modify" do not use the certificate, so there is nothing to check.
-		let usesCertificate = !(options.doAdhocSigning || options.onlyModify)
 		let bundleID = app.id
-		CertificateCheck.confirm(usesCertificate ? certificate : nil) { [weak self] in
+		CertificateCheck.confirm(certificate) { [weak self] in
 			self?._startDownload(id: id, url: url, bundleID: bundleID)
 		}
 	}
@@ -178,6 +178,9 @@ final class StoreInstaller: ObservableObject {
 		let certificate = Self.selectedCertificate()
 		let saved = OptionsManager.shared.options
 		var options = saved
+		// Always a real signature for an install (see `install(_:)`); these two would skip it.
+		options.onlyModify = false
+		options.doAdhocSigning = false
 
 		// The same adjustments the signing screen makes when it opens.
 		if
