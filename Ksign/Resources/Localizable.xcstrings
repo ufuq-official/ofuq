@@ -2284,6 +2284,23 @@
         }
       }
     },
+    "This certificate only allows the app ID %@. The app is signed with it and its extensions are removed, because the certificate cannot cover them. Installing another app with this certificate replaces this one." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هذه الشهادة تسمح بمعرّف تطبيق واحد فقط: %@. سيُوقَّع التطبيق بهذا المعرّف وتُحذف إضافاته لأن الشهادة لا تغطيها. تثبيت تطبيق آخر بنفس الشهادة سيستبدل هذا التطبيق."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This certificate only allows the app ID %@. The app is signed with it and its extensions are removed, because the certificate cannot cover them. Installing another app with this certificate replaces this one."
+          }
+        }
+      }
+    },
     "Add Source" : {
       "localizations" : {
         "ar" : {
