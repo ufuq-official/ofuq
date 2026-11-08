@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import OSLog
 
 extension ServerInstaller {
 	/// When on, Semi Local shows the old Safari install page instead of opening the prompt directly.
@@ -14,6 +15,11 @@ extension ServerInstaller {
 
 	static var semiLocalUsesSafari: Bool {
 		UserDefaults.standard.bool(forKey: semiLocalUsesSafariKey)
+	}
+
+	/// True only when the local server actually bound a port and reported no start error.
+	var isServerUp: Bool {
+		startError == nil && port != 0
 	}
 
 	/// Shows the system "Install <app>?" prompt.
@@ -25,22 +31,81 @@ extension ServerInstaller {
 		let link = iTunesLink
 		let useSafari = isSemiLocal && Self.semiLocalUsesSafari
 
-		DispatchQueue.main.async {
-			if useSafari {
-				showSafariPage()
-				return
-			}
-
-			guard let url = URL(string: link) else {
+		// The local server must be up before iOS fetches the manifest/payload, otherwise the install
+		// fails silently. A dead server (no bound port / start error) goes straight to the Safari fallback.
+		guard isServerUp else {
+			Logger.misc.error("Install prompt requested but the local server is not up")
+			DispatchQueue.main.async {
 				if isSemiLocal { showSafariPage() }
-				return
+			}
+			return
+		}
+
+		// Give the local server a moment to answer before firing the link. Best effort: a server that is
+		// up but refuses the probe is not blocked, because `isServerUp` already ruled out a dead server.
+		verifyLocalServerReady { [weak self] ready in
+			guard let self else { return }
+			if !ready {
+				Logger.misc.warning("Local server did not confirm readiness; opening the install link anyway")
 			}
 
-			UIApplication.shared.open(url, options: [:]) { opened in
-				if !opened && isSemiLocal {
-					DispatchQueue.main.async { showSafariPage() }
+			DispatchQueue.main.async {
+				if useSafari {
+					showSafariPage()
+					return
+				}
+
+				guard let url = URL(string: link) else {
+					if isSemiLocal { showSafariPage() }
+					return
+				}
+
+				UIApplication.shared.open(url, options: [:]) { opened in
+					if !opened && isSemiLocal {
+						DispatchQueue.main.async { showSafariPage() }
+					}
 				}
 			}
 		}
+	}
+
+	/// Best-effort readiness check: pings the local `/install` route until it answers or the timeout passes.
+	/// Any HTTP response (even 404) means the server is alive. Never blocks a server that is actually up —
+	/// on timeout it still calls back so the caller proceeds.
+	func verifyLocalServerReady(timeout: TimeInterval = 2.0, completion: @escaping (Bool) -> Void) {
+		let probeURL = pageEndpoint
+		let deadline = Date().addingTimeInterval(timeout)
+
+		let config = URLSessionConfiguration.ephemeral
+		config.timeoutIntervalForRequest = 0.6
+		config.waitsForConnectivity = false
+		config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+		let session = URLSession(configuration: config)
+
+		var finished = false
+		func finish(_ value: Bool) {
+			guard !finished else { return }
+			finished = true
+			session.finishTasksAndInvalidate()
+			completion(value)
+		}
+
+		func attempt() {
+			var request = URLRequest(url: probeURL)
+			request.httpMethod = "GET"
+			session.dataTask(with: request) { _, response, _ in
+				if response is HTTPURLResponse {
+					finish(true)
+					return
+				}
+				if Date() < deadline {
+					DispatchQueue.global().asyncAfter(deadline: .now() + 0.25) { attempt() }
+				} else {
+					finish(false)
+				}
+			}.resume()
+		}
+
+		attempt()
 	}
 }
