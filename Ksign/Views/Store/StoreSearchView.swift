@@ -73,8 +73,9 @@ struct StoreSearchView: View {
 	}
 
 	private var _suggestions: some View {
-		let items = Array(_catalog.suggestions.prefix(15))
-		let pageWidth = min(UIScreen.main.bounds.width - 64, 380)
+		let items: [StoreApp] = Array(_catalog.suggestions.prefix(15))
+		let screenWidth: CGFloat = UIScreen.main.bounds.width
+		let pageWidth: CGFloat = min(screenWidth - 64, 380)
 
 		return VStack(alignment: .leading, spacing: 12) {
 			StoreSectionHeader(title: .localized("Suggested"), value: .suggested)
@@ -96,7 +97,7 @@ struct StoreSearchView: View {
 				.compatScrollTargetLayout()
 			}
 			.compatScrollTargetBehavior()
-			.frame(height: 68 * 3 + 10 * 2)
+			.frame(height: 224) // three rows of 68 and two gaps of 10
 		}
 	}
 

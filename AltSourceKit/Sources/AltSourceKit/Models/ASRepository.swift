@@ -180,7 +180,11 @@ extension ASRepository {
         public var screenshots: Screenshots?
 
         public var screenshotURLs: [URL]?
-        
+
+        /// How many times the app was downloaded, when the source gives it
+        /// (`downloads`, `downloadCount` or `downloadsCount`). AltStore sources do not have it.
+        public var downloads: Int?
+
         public var marketplaceID: String?
 
         public struct Screenshots: Decodable, Hashable, Sendable {
@@ -322,7 +326,12 @@ extension ASRepository {
 
             self.screenshotURLs =
                 try container.decodeIfPresent([URL].self, forKey: .screenshotURLs)
-            
+
+            self.downloads = Self._decodeCount(
+                in: container,
+                keys: [.downloads, .downloadCount, .downloadsCount]
+            )
+
             if
                 let marketplaceID = try container.decodeIfPresent(String.self, forKey: .marketplaceID),
                 !marketplaceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -382,6 +391,26 @@ extension ASRepository {
             case permissions, appPermissions
             case screenshots, screenshotURLs
             case marketplaceID
+            case downloads, downloadCount, downloadsCount
+        }
+
+        /// Reads a count written as a number or as a string such as "12,345".
+        private static func _decodeCount(
+            in container: KeyedDecodingContainer<CodingKeys>,
+            keys: [CodingKeys]
+        ) -> Int? {
+            for key in keys {
+                if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+                    return value
+                }
+                if
+                    let string = try? container.decodeIfPresent(String.self, forKey: key),
+                    let value = Int(string.filter { $0.isASCII && $0.isNumber })
+                {
+                    return value
+                }
+            }
+            return nil
         }
         
         public var currentAppVersion: Version? {

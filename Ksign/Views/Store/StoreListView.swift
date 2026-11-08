@@ -2,7 +2,8 @@
 //  StoreListView.swift
 //  Ofuq
 //
-//  The Apps and Games tabs: a large title, a filter menu and one row per app.
+//  The Apps and Games tabs: a large title, a row of category chips, a filter menu
+//  and one row per app.
 //
 
 import SwiftUI
@@ -19,18 +20,34 @@ struct StoreListView: View {
 			case .games: return .localized("Games")
 			}
 		}
+
+		var symbol: String {
+			switch self {
+			case .apps:  return "square.stack.3d.up.fill"
+			case .games: return "gamecontroller.fill"
+			}
+		}
+
+		var categories: [StoreCategory] {
+			switch self {
+			case .apps:  return StoreCategory.appCategories
+			case .games: return StoreCategory.gameCategories
+			}
+		}
 	}
 
 	enum Sort: String, CaseIterable, Identifiable {
 		case newest
+		case downloads
 		case name
 
 		var id: String { rawValue }
 
 		var title: String {
 			switch self {
-			case .newest: return .localized("Newest")
-			case .name:   return .localized("Name")
+			case .newest:    return .localized("Newest")
+			case .downloads: return .localized("Most Downloaded")
+			case .name:      return .localized("Name")
 			}
 		}
 	}
@@ -53,15 +70,15 @@ struct StoreListView: View {
 		kind == .games ? _catalog.games : _catalog.nonGames
 	}
 
-	private var _categories: [StoreCategory] {
-		let present = Set(_baseItems.map(\.category))
-		return StoreCategory.allCases.filter { present.contains($0) }
+	/// "Most Downloaded" is only offered when the sources give download counts.
+	private var _sorts: [Sort] {
+		_catalog.hasDownloadCounts ? Sort.allCases : [.newest, .name]
 	}
 
 	private var _items: [StoreApp] {
 		var items = _baseItems
 		if let category = _category {
-			items = items.filter { $0.category == category }
+			items = items.filter { $0.belongs(to: category) }
 		}
 		if let sourceName = _sourceName {
 			items = items.filter { $0.source.name == sourceName }
@@ -69,7 +86,21 @@ struct StoreListView: View {
 		if !_query.isEmpty {
 			items = items.filter { $0.matches(_query) }
 		}
-		if _sort == .name {
+		switch _sort {
+		case .newest:
+			break
+		case .downloads:
+			items = items.enumerated()
+				.sorted { lhs, rhs in
+					let left = lhs.element.downloads ?? -1
+					let right = rhs.element.downloads ?? -1
+					if left != right {
+						return left > right
+					}
+					return lhs.offset < rhs.offset
+				}
+				.map { $0.element }
+		case .name:
 			items.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 		}
 		return items
@@ -82,6 +113,13 @@ struct StoreListView: View {
 	var body: some View {
 		NavigationStack {
 			List {
+				if !_catalog.apps.isEmpty {
+					_categoryBar
+						.listRowInsets(EdgeInsets())
+						.listRowSeparator(.hidden)
+						.listRowBackground(Color.clear)
+				}
+
 				ForEach(_items) { item in
 					StoreAppRow(item: item)
 						.background(
@@ -94,6 +132,7 @@ struct StoreListView: View {
 			.overlay {
 				if _items.isEmpty {
 					_emptyState
+						.padding(.top, _catalog.apps.isEmpty ? 0 : 60)
 				}
 			}
 			.navigationTitle(kind.title)
@@ -118,25 +157,97 @@ struct StoreListView: View {
 		.storeDestinationSheet($_destination)
 	}
 
+	// MARK: Category chips
+
+	private var _categoryBar: some View {
+		ScrollViewReader { proxy in
+			ScrollView(.horizontal, showsIndicators: false) {
+				HStack(spacing: 8) {
+					_chip(
+						title: String.localized("All"),
+						symbol: kind.symbol,
+						isSelected: _category == nil
+					) {
+						_select(nil)
+					}
+					.id("all")
+
+					ForEach(kind.categories) { category in
+						_chip(
+							title: category.title,
+							symbol: category.symbol,
+							isSelected: _category == category
+						) {
+							_select(_category == category ? nil : category)
+						}
+						.id(category.rawValue)
+					}
+				}
+				.padding(.horizontal, 16)
+				.padding(.vertical, 8)
+			}
+			.onChange(of: _category) { category in
+				withAnimation(.easeInOut(duration: 0.25)) {
+					proxy.scrollTo(category?.rawValue ?? "all", anchor: .center)
+				}
+			}
+		}
+	}
+
+	private func _chip(
+		title: String,
+		symbol: String,
+		isSelected: Bool,
+		action: @escaping () -> Void
+	) -> some View {
+		let textStyle: AnyShapeStyle = isSelected
+			? AnyShapeStyle(Color.white)
+			: AnyShapeStyle(HierarchicalShapeStyle.primary)
+		let fillStyle: AnyShapeStyle = isSelected
+			? AnyShapeStyle(TintShapeStyle.tint)
+			: AnyShapeStyle(Color(uiColor: .tertiarySystemFill))
+
+		return Button(action: action) {
+			Label(title, systemImage: symbol)
+				.font(.subheadline.weight(.semibold))
+				.lineLimit(1)
+				.fixedSize()
+				.padding(.horizontal, 14)
+				.padding(.vertical, 8)
+				.foregroundStyle(textStyle)
+				.background(fillStyle, in: Capsule())
+				.contentShape(Capsule())
+		}
+		.buttonStyle(.plain)
+	}
+
+	private func _select(_ category: StoreCategory?) {
+		withAnimation(.easeInOut(duration: 0.2)) {
+			_category = category
+		}
+	}
+
 	// MARK: Filter
 
 	private var _filterMenu: some View {
 		Menu {
-			Picker(String.localized("Sort"), selection: $_sort) {
-				ForEach(Sort.allCases) { sort in
-					Text(sort.title).tag(sort)
+			Picker(String.localized("Category"), selection: $_category) {
+				Label(String.localized("All"), systemImage: kind.symbol)
+					.tag(StoreCategory?.none)
+				ForEach(kind.categories) { category in
+					Label(category.title, systemImage: category.symbol)
+						.tag(StoreCategory?.some(category))
 				}
 			}
 
-			if kind == .apps, _categories.count > 1 {
-				Picker(String.localized("Category"), selection: $_category) {
-					Text(String.localized("All")).tag(StoreCategory?.none)
-					ForEach(_categories) { category in
-						Label(category.title, systemImage: category.symbol)
-							.tag(StoreCategory?.some(category))
-					}
+			Divider()
+
+			Picker(String.localized("Sort"), selection: $_sort) {
+				ForEach(_sorts) { sort in
+					Text(sort.title).tag(sort)
 				}
 			}
+			.pickerStyle(.menu)
 
 			if _catalog.sourceNames.count > 1 {
 				Picker(String.localized("Source"), selection: $_sourceName) {
@@ -145,6 +256,7 @@ struct StoreListView: View {
 						Text(name).tag(String?.some(name))
 					}
 				}
+				.pickerStyle(.menu)
 			}
 
 			if _isFiltering {
@@ -186,6 +298,12 @@ struct StoreListView: View {
 				}
 				.padding(32)
 			}
+		} else if let category = _category, _query.isEmpty, _sourceName == nil {
+			StoreEmptyState(
+				symbol: category.symbol,
+				title: .localized("No Apps"),
+				message: .localized("There is nothing here yet.")
+			)
 		} else {
 			StoreEmptyState(
 				symbol: "magnifyingglass",

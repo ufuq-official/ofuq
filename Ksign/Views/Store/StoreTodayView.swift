@@ -94,9 +94,18 @@ struct StoreTodayView: View {
 				if index == 4, !_catalog.games.isEmpty {
 					_listCard(
 						caption: .localized("Emulators and games"),
-						title: .localized("Games"),
-						collection: .category(.games),
-						items: Array(_catalog.games.prefix(4))
+						title: StoreCollection.topGames.title,
+						collection: .topGames,
+						items: Array(_catalog.items(for: .topGames).prefix(4))
+					)
+				}
+
+				if index == 7, !_catalog.nonGames.isEmpty {
+					_listCard(
+						caption: .localized("Tools for work and study"),
+						title: StoreCollection.topApps.title,
+						collection: .topApps,
+						items: Array(_catalog.items(for: .topApps).prefix(4))
 					)
 				}
 			}

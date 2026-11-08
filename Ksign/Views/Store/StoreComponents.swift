@@ -131,14 +131,23 @@ struct StoreInstallButton: View {
 			.fixedSize()
 			.padding(.horizontal, 18)
 			.padding(.vertical, 6)
-			.foregroundStyle(style == .glass ? AnyShapeStyle(Color.white) : AnyShapeStyle(.tint))
-			.background(
-				style == .glass
-					? AnyShapeStyle(.ultraThinMaterial)
-					: AnyShapeStyle(Color(uiColor: .tertiarySystemFill)),
-				in: Capsule()
-			)
+			.foregroundStyle(_textStyle)
+			.background(_fillStyle, in: Capsule())
 			.contentShape(Capsule())
+	}
+
+	private var _textStyle: AnyShapeStyle {
+		if style == .glass {
+			return AnyShapeStyle(Color.white)
+		}
+		return AnyShapeStyle(TintShapeStyle.tint)
+	}
+
+	private var _fillStyle: AnyShapeStyle {
+		if style == .glass {
+			return AnyShapeStyle(Material.ultraThinMaterial)
+		}
+		return AnyShapeStyle(Color(uiColor: .tertiarySystemFill))
 	}
 }
 
@@ -147,9 +156,16 @@ struct StoreDownloadRing: View {
 	@ObservedObject var download: Download
 	var style: StoreInstallButton.Style = .standard
 
+	private var _tint: AnyShapeStyle {
+		if style == .glass {
+			return AnyShapeStyle(Color.white)
+		}
+		return AnyShapeStyle(TintShapeStyle.tint)
+	}
+
 	var body: some View {
-		let progress = min(max(download.overallProgress, 0.03), 1)
-		let tint = style == .glass ? AnyShapeStyle(Color.white) : AnyShapeStyle(.tint)
+		let progress: Double = min(max(download.overallProgress, 0.03), 1.0)
+		let tint: AnyShapeStyle = _tint
 
 		ZStack {
 			Circle()
@@ -408,16 +424,22 @@ struct StoreEmptyState: View {
 // MARK: - Account menu
 /// The screens that used to be tabs, now opened from the account button of the store.
 enum StoreDestination: String, Identifiable, CaseIterable {
-	case sources
+	case library
 	case downloads
 	case files
 	case certificates
 	case settings
+	/// Its own tab now; only opened from the "Add Source" button of an empty store.
+	case sources
 
 	var id: String { rawValue }
 
+	/// What the account menu lists.
+	static let menuItems: [StoreDestination] = [.library, .downloads, .files, .certificates, .settings]
+
 	var tab: TabEnum {
 		switch self {
+		case .library:      return .library
 		case .sources:      return .sources
 		case .downloads:    return .downloader
 		case .files:        return .files
@@ -432,7 +454,7 @@ struct StoreAccountButton: View {
 
 	var body: some View {
 		Menu {
-			ForEach(StoreDestination.allCases) { item in
+			ForEach(StoreDestination.menuItems) { item in
 				Button {
 					destination = item
 				} label: {

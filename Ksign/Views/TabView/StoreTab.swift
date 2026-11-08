@@ -2,8 +2,8 @@
 //  StoreTab.swift
 //  Ofuq
 //
-//  The tabs of the store layout: Today, Apps, Games, Library and Search.
-//  The other screens (Sources, Downloads, Files, Certificates, Settings) open from the
+//  The tabs of the store layout: Today, Apps, Sources, Games and Search.
+//  The other screens (Library, Downloads, Files, Certificates, Settings) open from the
 //  account button, and show in the sidebar on iPad.
 //
 
@@ -13,20 +13,20 @@ import CoreData
 enum StoreTab: String, Hashable, CaseIterable {
 	case today
 	case apps
+	case sources
 	case games
-	case library
 	case search
 
-	case sources
+	case library
 	case downloads
 	case files
 	case certificates
 	case settings
 
 	/// The tabs of the tab bar, before Search.
-	static let mainTabs: [StoreTab] = [.today, .apps, .games, .library]
+	static let mainTabs: [StoreTab] = [.today, .apps, .sources, .games]
 	/// The tabs only shown in the iPad sidebar.
-	static let moreTabs: [StoreTab] = [.sources, .downloads, .files, .certificates, .settings]
+	static let moreTabs: [StoreTab] = [.library, .downloads, .files, .certificates, .settings]
 
 	var title: String {
 		switch self {
@@ -50,7 +50,7 @@ enum StoreTab: String, Hashable, CaseIterable {
 		case .games:        return "gamecontroller.fill"
 		case .library:      return "square.grid.2x2.fill"
 		case .search:       return "magnifyingglass"
-		case .sources:      return TabEnum.sources.icon
+		case .sources:      return "globe"
 		case .downloads:    return TabEnum.downloader.icon
 		case .files:        return TabEnum.files.icon
 		case .certificates: return TabEnum.certificates.icon
