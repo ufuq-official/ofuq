@@ -1,0 +1,60 @@
+name: Build IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+concurrency:
+  group: build-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build unsigned IPA
+    runs-on: macos-26
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fetch Zsign and IDeviceKit
+        run: |
+          set -euo pipefail
+          git lfs install --skip-repo || true
+
+          fetch() {
+            local dir="$1" url="$2" sha="$3"
+            if [ -f "$dir/Package.swift" ]; then
+              echo "$dir already present"
+              return
+            fi
+            rm -rf "$dir"
+            git init -q "$dir"
+            git -C "$dir" remote add origin "$url"
+            git -C "$dir" fetch -q --depth 1 origin "$sha"
+            git -C "$dir" checkout -q FETCH_HEAD
+            git -C "$dir" lfs pull || true
+            git -C "$dir" submodule update --init --recursive --depth 1
+          }
+
+          fetch Zsign      https://github.com/khcrysalis/Zsign-Package 6ffe703df73ef9069adacdbb19d571f11a69a801
+          fetch IDeviceKit https://github.com/khcrysalis/IDeviceKit    837cf1e14d4875771dd5ee1b754a4c86215c5db3
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build
+        run: make
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa
+          path: packages/*.ipa
+          if-no-files-found: error
+          retention-days: 14
