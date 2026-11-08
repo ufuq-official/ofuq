@@ -1,5 +1,7 @@
 name: Build IPA
 
+# Builds an unsigned IPA on a GitHub-hosted Mac and attaches it to the run as a downloadable artifact.
+# Run it from the "Actions" tab ("Run workflow"), or just push to main.
 on:
   workflow_dispatch:
   push:
@@ -22,6 +24,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # The source ZIP from GitHub does not contain git submodules, so these two folders are empty.
+      # Fetch them at the exact commits Ksign v1.6 uses.
       - name: Fetch Zsign and IDeviceKit
         run: |
           set -euo pipefail
@@ -49,7 +53,61 @@ jobs:
         run: xcodebuild -version
 
       - name: Build
-        run: make
+        shell: bash
+        run: |
+          set -o pipefail
+          make 2>&1 | tee build.log
+
+      # The build log needs a GitHub sign-in to read. Annotations do not: they show on the run page and
+      # in the public API (check-runs/<job id>/annotations), so build errors can be read without an account.
+      # GitHub keeps at most 10 error annotations per step, hence two steps.
+      - name: Show compile errors
+        if: failure()
+        shell: bash
+        run: |
+          touch build.log
+          # Swift/C errors with a file and a line, e.g. /Users/runner/work/ofuq/ofuq/Ksign/X.swift:12:5: error: ...
+          grep -E '^/[^:]+:[0-9]+:[0-9]+: (fatal )?error: ' build.log | sort -u > located-errors.txt || true
+          # Everything else: asset catalog, strings, storyboard, linker, packages, scripts.
+          grep -E 'error:|^ld: |Undefined symbol|BUILD FAILED|The following build commands failed|^make: \*\*\*' build.log \
+            | grep -vE '^/[^:]+:[0-9]+:[0-9]+: (fatal )?error: ' | sort -u > other-errors.txt || true
+
+          {
+            echo "## Build errors"
+            echo '```'
+            head -n 60 located-errors.txt
+            echo '---'
+            head -n 60 other-errors.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          esc() { local s="$1"; s="${s//'%'/'%25'}"; s="${s//$'\r'/}"; printf '%s' "$s"; }
+          head -n 10 located-errors.txt | while IFS= read -r line; do
+            file="${line%%:*}"; rest="${line#*:}"
+            ln="${rest%%:*}"; rest="${rest#*:}"
+            col="${rest%%:*}"; msg="${rest#*error: }"
+            echo "::error file=${file#"$GITHUB_WORKSPACE"/},line=${ln},col=${col}::$(esc "$msg")"
+          done
+
+      - name: Show other build errors
+        if: failure()
+        shell: bash
+        run: |
+          esc() { local s="$1"; s="${s//'%'/'%25'}"; s="${s//$'\r'/}"; printf '%s' "$s"; }
+          # When there are no located errors, the rest of them are the useful ones.
+          if [ -s located-errors.txt ]; then
+            source_file=located-errors.txt; skip=10
+          else
+            source_file=other-errors.txt; skip=0
+          fi
+          tail -n +"$((skip + 1))" "$source_file" 2>/dev/null | head -n 10 | while IFS= read -r line; do
+            echo "::error::$(esc "${line:0:900}")"
+          done
+          if [ "$source_file" = located-errors.txt ]; then
+            head -n 5 other-errors.txt 2>/dev/null | while IFS= read -r line; do
+              echo "::warning::$(esc "${line:0:900}")"
+            done
+          fi
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
