@@ -250,7 +250,7 @@ extension SigningView {
 			}
 		} footer: {
 			if let appID = _lockedIdentifier {
-				Text(.localized("This certificate only allows the app ID %@. The app is signed with it and its extensions are removed, because the certificate cannot cover them. Installing another app with this certificate replaces this one.", arguments: appID))
+				Text(verbatim: .localized("This certificate only allows the app ID %@. The app is signed with it and its extensions are removed, because the certificate cannot cover them. Installing another app with this certificate replaces this one.", arguments: appID))
 			}
 		}
 	}
