@@ -49,8 +49,152 @@ jobs:
           fetch Zsign      https://github.com/khcrysalis/Zsign-Package 6ffe703df73ef9069adacdbb19d571f11a69a801
           fetch IDeviceKit https://github.com/khcrysalis/IDeviceKit    837cf1e14d4875771dd5ee1b754a4c86215c5db3
 
+      # IDeviceKit's Package.swift makes Xcode download IDevice.xcframework.zip from the jkcoxson/idevice
+      # GitHub release while it resolves packages. GitHub has been answering "504 Gateway Time-out" for that
+      # one file, and then the whole build stops at "Could not resolve package dependencies".
+      # So download it here instead: retries, a second route through the GitHub API, a check against the
+      # checksum written in IDeviceKit/Package.swift, a cache for later runs, and then the package is pointed
+      # at the local copy.
+      - name: Read IDevice binary details
+        id: idevice
+        shell: bash
+        run: |
+          set -euo pipefail
+          url=$(grep -oE 'https://github\.com/[^"]+\.zip' IDeviceKit/Package.swift | head -n 1 || true)
+          sum=$(grep -oE 'checksum: *"[0-9a-f]{64}"' IDeviceKit/Package.swift | grep -oE '[0-9a-f]{64}' | head -n 1 || true)
+          if [ -z "$url" ] || [ -z "$sum" ]; then
+            echo "IDeviceKit has no remote binary target, nothing to download."
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$url"
+          echo "sha256 $sum"
+          {
+            echo "needed=true"
+            echo "url=$url"
+            echo "sum=$sum"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Restore IDevice binary from cache
+        id: idevice-cache
+        if: steps.idevice.outputs.needed == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: .idevice-cache
+          key: idevice-xcframework-${{ steps.idevice.outputs.sum }}
+
+      - name: Download IDevice binary
+        if: steps.idevice.outputs.needed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ steps.idevice.outputs.url }}
+          SUM: ${{ steps.idevice.outputs.sum }}
+        run: |
+          set -uo pipefail
+          mkdir -p .idevice-cache
+          zip=".idevice-cache/IDevice.xcframework.zip"
+          repo=$(echo "$URL" | sed -E 's#^https://github\.com/([^/]+/[^/]+)/releases/download/.*#\1#')
+          tag=$(echo "$URL" | sed -E 's#^.*/releases/download/([^/]+)/.*#\1#')
+          name=$(basename "$URL")
+
+          good() { [ -s "$zip" ] && [ "$(shasum -a 256 "$zip" | cut -d' ' -f1)" = "$SUM" ]; }
+
+          if good; then
+            echo "Using the cached copy."
+            exit 0
+          fi
+
+          for attempt in 1 2 3 4 5 6; do
+            # The API route skips the github.com/.../releases/download/... address that has been timing out.
+            echo "Attempt $attempt: GitHub API ($repo, $tag, $name)"
+            gh release download "$tag" --repo "$repo" --pattern "$name" --output "$zip" --clobber \
+              || echo "GitHub API download failed."
+            good && break
+
+            echo "Attempt $attempt: $URL"
+            curl -fsSL --retry 2 --retry-all-errors --retry-delay 5 --connect-timeout 30 --max-time 600 \
+              -o "$zip" "$URL" || echo "Direct download failed."
+            good && break
+
+            rm -f "$zip"
+            sleep $((attempt * 20))
+          done
+
+          if good; then
+            echo "Downloaded $name, sha256 matches."
+          else
+            rm -f "$zip"
+            echo "::error::GitHub would not serve $name from $repo ($tag) after several tries (it answers 504 Gateway Time-out). Nothing is wrong with the app code; run the workflow again later."
+            exit 1
+          fi
+
+      - name: Save IDevice binary to cache
+        if: steps.idevice.outputs.needed == 'true' && steps.idevice-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .idevice-cache
+          key: idevice-xcframework-${{ steps.idevice.outputs.sum }}
+
+      - name: Point IDeviceKit at the local binary
+        if: steps.idevice.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .idevice-unzip
+          mkdir .idevice-unzip
+          unzip -q .idevice-cache/IDevice.xcframework.zip -d .idevice-unzip
+          fw=$(find .idevice-unzip -maxdepth 3 -type d -name '*.xcframework' -not -path '*/__MACOSX/*' | head -n 1)
+          if [ -z "$fw" ]; then
+            echo "::error::IDevice.xcframework.zip does not contain an .xcframework folder."
+            exit 1
+          fi
+          export FW_NAME="$(basename "$fw")"
+          rm -rf "IDeviceKit/$FW_NAME"
+          mv "$fw" "IDeviceKit/$FW_NAME"
+          rm -rf .idevice-unzip
+
+          perl -0pi -e 's/url:\s*"[^"]+",\s*checksum:\s*"[0-9a-f]{64}"/path: "$ENV{FW_NAME}"/' IDeviceKit/Package.swift
+          grep -n -A 3 'binaryTarget' IDeviceKit/Package.swift
+          if ! grep -q "path: \"$FW_NAME\"" IDeviceKit/Package.swift; then
+            echo "::error::Could not point IDeviceKit/Package.swift at the local $FW_NAME."
+            exit 1
+          fi
+
       - name: Show Xcode version
         run: xcodebuild -version
+
+      # Resolve packages before building, with retries, so a passing network hiccup does not fail the build,
+      # and so a real resolution error shows up in full (the lines after "Could not resolve package
+      # dependencies:" say which package failed and why). Same derived data folder as the makefile uses.
+      - name: Resolve Swift packages
+        shell: bash
+        run: |
+          set -o pipefail
+          esc() { local s="$1"; s="${s//'%'/'%25'}"; s="${s//$'\r'/}"; printf '%s' "$s"; }
+          for attempt in 1 2 3; do
+            if xcodebuild -resolvePackageDependencies \
+                 -project Ksign.xcodeproj \
+                 -scheme Ksign \
+                 -derivedDataPath "$TMPDIR/Ksign" 2>&1 | tee resolve.log; then
+              exit 0
+            fi
+            echo "::warning::Swift package resolution failed (attempt $attempt of 3)."
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 30)); fi
+          done
+
+          grep -A 15 -E 'Could not resolve package dependencies|error:' resolve.log \
+            | grep -vE '^--$' | awk 'NF && !seen[$0]++' > resolve-errors.txt || true
+          {
+            echo "## Swift package resolution failed"
+            echo '```'
+            head -n 60 resolve-errors.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          head -n 10 resolve-errors.txt | while IFS= read -r line; do
+            echo "::error::$(esc "${line:0:900}")"
+          done
+          exit 1
 
       - name: Build
         shell: bash
@@ -69,8 +213,12 @@ jobs:
           # Swift/C errors with a file and a line, e.g. /Users/runner/work/ofuq/ofuq/Ksign/X.swift:12:5: error: ...
           grep -E '^/[^:]+:[0-9]+:[0-9]+: (fatal )?error: ' build.log | sort -u > located-errors.txt || true
           # Everything else: asset catalog, strings, storyboard, linker, packages, scripts.
-          grep -E 'error:|^ld: |Undefined symbol|BUILD FAILED|The following build commands failed|^make: \*\*\*' build.log \
-            | grep -vE '^/[^:]+:[0-9]+:[0-9]+: (fatal )?error: ' | sort -u > other-errors.txt || true
+          # For package errors the reason is on the lines after "Could not resolve package dependencies:".
+          {
+            grep -E 'error:|^ld: |Undefined symbol|BUILD FAILED|The following build commands failed|^make: \*\*\*' build.log || true
+            grep -A 12 'Could not resolve package dependencies' build.log || true
+          } | grep -vE '^/[^:]+:[0-9]+:[0-9]+: (fatal )?error: ' | grep -vE '^--$' \
+            | awk 'NF && !seen[$0]++' > other-errors.txt || true
 
           {
             echo "## Build errors"
