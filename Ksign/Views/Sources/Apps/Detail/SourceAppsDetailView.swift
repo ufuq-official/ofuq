@@ -57,7 +57,8 @@ struct SourceAppsDetailView: View {
 						
 						Spacer()
 						
-						DownloadButtonView(app: app)
+						// Ofuq: one tap install; "Download Only" stays in the button's menu.
+						StoreInstallButton(app: app)
 					}
 					.lineLimit(2)
 					.frame(maxWidth: .infinity, alignment: .leading)
@@ -67,7 +68,7 @@ struct SourceAppsDetailView: View {
 				_infoPills(app: app)
 				Divider()
                 
-                if let screenshotURLs = app.screenshotURLs {
+                if let screenshotURLs = app.allScreenshotURLs {
                     NBSection(.localized("Screenshots")) {
                         _screenshots(screenshotURLs: screenshotURLs)
                     }
@@ -202,7 +203,7 @@ struct SourceAppsDetailView: View {
 			}
 		}
 		.fullScreenCover(isPresented: $_isScreenshotPreviewPresented) {
-			if let screenshotURLs = app.screenshotURLs {
+			if let screenshotURLs = app.allScreenshotURLs {
 				ScreenshotPreviewView(
 					screenshotURLs: screenshotURLs,
 					initialIndex: _selectedScreenshotIndex

@@ -40,12 +40,27 @@ struct FeatherApp: App {
 			.onAppear {
 				accentColorManager.updateGlobalTintColor()
 				if logsManager.isCapturing { logsManager.startCapture() }
+					_applyInterfaceStyle()
 			}
 		}
 	}
 	
+	/// Applies the appearance picked in Settings (dark by default, like the store design) when the app opens.
+	/// Before, it was only applied when changed in Settings.
+	private func _applyInterfaceStyle() {
+		let raw = UserDefaults.standard.integer(forKey: "Feather.userInterfaceStyle")
+		guard let style = UIUserInterfaceStyle(rawValue: raw) else { return }
+		for scene in UIApplication.shared.connectedScenes {
+			guard let windowScene = scene as? UIWindowScene else { continue }
+			for window in windowScene.windows {
+				window.overrideUserInterfaceStyle = style
+			}
+		}
+	}
+
 	private func _handleURL(_ url: URL) {
-		if url.scheme == "ksign" {
+		// "ofuq://" is the app's own scheme; "ksign://" keeps working for links made for the original app.
+		if url.scheme == "ofuq" || url.scheme == "ksign" {
 			if let fullPath = url.validatedScheme(after: "/source/") {
 				FR.handleSource(fullPath) { }
 			}
@@ -82,6 +97,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         
+        // Ofuq: dark appearance by default; Settings > Appearance still changes it.
+        UserDefaults.standard.register(defaults: [
+            "Feather.userInterfaceStyle": UIUserInterfaceStyle.dark.rawValue
+        ])
+
         _createPipeline()
         _createSourcesDirectory()
         if !UserDefaults.standard.bool(forKey: "hasInitializedBuiltInSources") {

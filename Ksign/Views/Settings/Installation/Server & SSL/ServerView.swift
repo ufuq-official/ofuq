@@ -14,6 +14,7 @@ struct ServerView: View {
 	// shows one method while the installer silently uses another.
 	@AppStorage("Feather.ipFix") private var _ipFix: Bool = true
 	@AppStorage("Feather.serverMethod") private var _serverMethod: Int = ServerInstaller.defaultServerMethod
+	@AppStorage(ServerInstaller.semiLocalUsesSafariKey) private var _semiLocalUsesSafari: Bool = false
 	@State private var _fullyLocalIssue: String?
 
 	private let _serverMethods: [String] = [
@@ -34,10 +35,15 @@ struct ServerView: View {
 				}
 				Toggle(.localized("Only use localhost address"), systemImage: "lifepreserver", isOn: $_ipFix)
 					.disabled(_serverMethod != ServerInstaller.semiLocal)
+				Toggle(.localized("Install through Safari"), systemImage: "safari", isOn: $_semiLocalUsesSafari)
+					.disabled(_serverMethod != ServerInstaller.semiLocal)
 			} footer: {
-				if _serverMethod == ServerInstaller.fullyLocal, let _fullyLocalIssue {
-					Text(String.localized("Fully Local cannot be used right now: %@ Apps will be installed with Semi Local instead.", arguments: _fullyLocalIssue))
-						.foregroundStyle(.orange)
+				VStack(alignment: .leading, spacing: 6) {
+					if _serverMethod == ServerInstaller.fullyLocal, let _fullyLocalIssue {
+						Text(String.localized("Fully Local cannot be used right now: %@ Apps will be installed with Semi Local instead.", arguments: _fullyLocalIssue))
+							.foregroundStyle(.orange)
+					}
+					Text(.localized("Ofuq opens the iOS install prompt directly. Turn on \"Install through Safari\" only if the prompt does not appear on your device."))
 				}
 			}
 

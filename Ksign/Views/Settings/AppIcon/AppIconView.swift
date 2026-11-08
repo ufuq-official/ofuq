@@ -24,15 +24,15 @@ struct AppIconView: View {
     private let appIcons: [AppIconOption] = [
         AppIconOption(
             id: "primary",
-            title: "Default",
-            subtitle: "Ksign",
+            title: .localized("Default"),
+            subtitle: "Ofuq",
             iconName: "AppIcon",
             alternateIconName: nil
         ),
-        
-        AppIconOption(id: "kana_peek", title: "Peek", subtitle: "Kana", iconName: "kana_peek", alternateIconName: "kana_peek"),
-        AppIconOption(id: "kana_love", title: "Love", subtitle: "Kana", iconName: "kana_love", alternateIconName: "kana_love"),
-        AppIconOption(id: "kana_ded", title: "Skull", subtitle: "Kana", iconName: "kana_ded", alternateIconName: "kana_ded"),
+
+        AppIconOption(id: "ofuq_dark", title: .localized("Night"), subtitle: "Ofuq", iconName: "ofuq_dark", alternateIconName: "ofuq_dark"),
+        AppIconOption(id: "ofuq_brown", title: .localized("Brown"), subtitle: "Ofuq", iconName: "ofuq_brown", alternateIconName: "ofuq_brown"),
+        AppIconOption(id: "ofuq_white", title: .localized("White"), subtitle: "Ofuq", iconName: "ofuq_white", alternateIconName: "ofuq_white"),
     ]
     
     // MARK: Body

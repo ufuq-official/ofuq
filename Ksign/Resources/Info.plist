@@ -40,7 +40,7 @@
 			<key>CFBundleTypeIconFile</key>
 			<string>ksign_extension</string>
 			<key>CFBundleTypeName</key>
-			<string>Ksign Certificate Package</string>
+			<string>Ofuq Certificate Package</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
@@ -55,29 +55,29 @@
 	<dict>
 		<key>CFBundleAlternateIcons</key>
 		<dict>
-			<key>kana_ded</key>
+			<key>ofuq_dark</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>kana_ded</string>
+					<string>ofuq_dark</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>kana_love</key>
+			<key>ofuq_brown</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>kana_love</string>
+					<string>ofuq_brown</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>kana_peek</key>
+			<key>ofuq_white</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>kana_peek</string>
+					<string>ofuq_white</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -117,6 +117,7 @@
 			<string>nya.asami.ksign</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>ofuq</string>
 				<string>ksign</string>
 			</array>
 		</dict>
@@ -200,7 +201,7 @@
 				<string>public.content</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Ksign Certificate Package</string>
+			<string>Ofuq Certificate Package</string>
 			<key>UTTypeIconFile</key>
 			<string>ksign_extension</string>
 			<key>UTTypeIcons</key>

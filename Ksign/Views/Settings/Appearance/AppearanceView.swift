@@ -29,7 +29,8 @@ struct AppearanceView: View {
 	@StateObject private var accentColorManager = AccentColorManager.shared
     
 	private let _accentColors: [(name: String, color: Color)] = [
-		(.localized("Default"), Color(red: 0x53/255, green: 0x94/255, blue: 0xF7/255)),
+		(.localized("Default"), AccentColorManager.ofuqBrown),
+		(.localized("Sky Blue"), Color(red: 0x53/255, green: 0x94/255, blue: 0xF7/255)),
 		(.localized("Cherry"), Color(red: 0xFF/255, green: 0x8B/255, blue: 0x92/255)),
 		(.localized("Red"), .red),
 		(.localized("Orange"), .orange),

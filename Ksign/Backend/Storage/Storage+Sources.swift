@@ -93,14 +93,15 @@ extension Storage {
 
 
 	func addBuiltInSources() {
+		// Official sources published by the developers of each app (checked 2026-11-08).
 		let builtInSourceURLs = [
-            "https://raw.githubusercontent.com/Nyasami/Ksign/refs/heads/main/repo.json",
-            "https://community-apps.sidestore.io/sidecommunity.json",
-            "https://xitrix.github.io/iTorrent/AltStore.json",
-			"https://repository.apptesters.org",
-            "https://github.com/LiveContainer/LiveContainer/releases/download/1.0/apps.json",
-			"https://ipa.cypwn.xyz/cypwn.json",
-            "https://alt.crystall1ne.dev"
+			"https://apps.altstore.io",                                    // AltStore: Delta, Clip
+			"https://apps.sidestore.io",                                   // SideStore
+			"https://community-apps.sidestore.io/sidecommunity.json",      // SideStore Team Picks: PPSSPP, RetroArch, iSH, ...
+			"https://alt.getutm.app",                                      // UTM
+			"https://provenance-emu.com/apps.json",                        // Provenance
+			"https://xitrix.github.io/iTorrent/AltStore.json",             // iTorrent
+			"https://github.com/LiveContainer/LiveContainer/releases/download/1.0/apps.json" // LiveContainer
 		]
 		
 		for urlString in builtInSourceURLs {

@@ -28,17 +28,12 @@ struct SettingsView: View {
     }
     
     
-	private let _donationsUrl = "https://github.com/sponsors/nyasami"
-	private let _githubUrl = "https://github.com/nyasami/ksign"
-    private let _discordUrl = "https://discord.gg/sfbZfQzVdQ"
 	// MARK: Body
     var body: some View {
 		NBNavigationView(.localized("Settings")) {
 			Form {
-//				#if !NIGHTLY && !DEBUG
-				SettingsDonationCellView(site: _donationsUrl)
-//				#endif
-				
+				SettingsCommunityCellView()
+
 				_feedback()
 				
 				Section {
@@ -109,14 +104,17 @@ extension SettingsView {
                 Label(.localized("About"), systemImage: "info.circle")
             }
 			Button(.localized("Telegram Channel"), systemImage: "paperplane.circle") {
-				UIApplication.open("https://t.me/KhoinDNS")
+				UIApplication.open(Ofuq.telegramChannel)
 			}
-			Button(.localized("GitHub Repository"), systemImage: "safari") {
-				UIApplication.open(_githubUrl)
+			Button(.localized("IPA Channel"), systemImage: "arrow.down.app") {
+				UIApplication.open(Ofuq.ipaChannel)
 			}
-            Button(.localized("Discord Server"), systemImage: "safari") {
-                UIApplication.open(_discordUrl)
-            }
+			Button(.localized("Instagram"), systemImage: "camera") {
+				UIApplication.open(Ofuq.instagram)
+			}
+			Button(.localized("Source Code"), systemImage: "chevron.left.forwardslash.chevron.right") {
+				UIApplication.open(Ofuq.sourceCode)
+			}
 		}
 	}
 	
@@ -130,7 +128,7 @@ extension SettingsView {
 				UIApplication.open(FileManager.default.archives.toSharedDocumentsURL()!)
 			}
 		} footer: {
-			Text(.localized("All of Ksign files except certificates are contained in the documents directory, here are some quick links to these."))
+			Text(.localized("All of Ofuq files except certificates are contained in the documents directory, here are some quick links to these."))
 		}
 	}
 }

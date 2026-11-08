@@ -116,7 +116,7 @@ extension ServerInstaller {
 				],
 				[
 					"kind": "display-image",
-					"url": "https://raw.githubusercontent.com/Nyasami/Ksign/refs/heads/main/Ksign/Resources/Assets.xcassets/AppIcons/AppIcon.appiconset/Ksign-default.png",
+					"url": Ofuq.installIconURL,
 				],
 			],
 			"metadata": [

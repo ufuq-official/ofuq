@@ -57,9 +57,8 @@ struct InstallPreviewView: View {
 		}
 		.onReceive(viewModel.$status) { newStatus in
 			if case .ready = newStatus {
-				if _serverMethod == 0 {
-					UIApplication.shared.open(URL(string: installer.iTunesLink)!)
-				} else if _serverMethod == 1 {
+				// Both methods open the install prompt directly; Safari is only a Semi Local fallback.
+				installer.openInstallPrompt {
 					_isWebviewPresenting = true
 				}
 			}

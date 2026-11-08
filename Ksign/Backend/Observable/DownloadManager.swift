@@ -189,6 +189,19 @@ extension DownloadManager: URLSessionDownloadDelegate {
 				}
 			}
 			DispatchQueue.main.async {
+				// Ofuq: lets the store sign and install the app as soon as it is imported.
+				// Posted before the download leaves the list, see StoreInstaller.
+				if let dl = dl {
+					var info: [AnyHashable: Any]? = nil
+					if let err {
+						info = ["error": err]
+					}
+					NotificationCenter.default.post(
+						name: err == nil ? .ofuqPackageImported : .ofuqPackageImportFailed,
+						object: dl.id,
+						userInfo: info
+					)
+				}
 				if let dl = dl, let index = DownloadManager.shared.getDownloadIndex(by: dl.id) {
 					DownloadManager.shared.downloads.remove(at: index)
 				}

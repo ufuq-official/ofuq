@@ -1,4 +1,6 @@
 NAME := Ksign
+# File name of the finished package in packages/ (the Xcode target is still called Ksign).
+IPA_NAME := Ofuq
 PLATFORM := iphoneos
 SCHEMES := Ksign
 TMP := $(TMPDIR)/$(NAME)
@@ -55,4 +57,4 @@ $(SCHEMES): deps
 	ln -sf "$(STAGE)/Payload" Payload
 	
 	mkdir -p packages
-	zip -r9 "packages/$@.ipa" Payload
+	zip -r9 "packages/$(IPA_NAME).ipa" Payload

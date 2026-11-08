@@ -194,16 +194,53 @@ extension ASRepository {
                 // 3. a mix of 1 and 2, having urls or dictionaries
                 // 4. a dictionary with properties for iphone and ipad, which are arrays of above types
 
-                #warning("implement screenshots decoding")
+                // 4.
+                if
+                    let container = try? decoder.container(keyedBy: CodingKeys.self),
+                    container.contains(.iPhone) || container.contains(.iPad)
+                {
+                    let iPhone: [Item]? = try? container.decodeIfPresent([Item].self, forKey: .iPhone)
+                    let iPad: [Item]? = try? container.decodeIfPresent([Item].self, forKey: .iPad)
+                    self.iPhone = (iPhone ?? []).compactMap { $0.url }
+                    self.iPad = (iPad ?? []).compactMap { $0.url }
+                    return
+                }
 
+                // 1, 2 and 3: a plain list is for the iPhone.
+                let single = try decoder.singleValueContainer()
+                let items: [Item] = (try? single.decode([Item].self)) ?? []
+                self.iPhone = items.compactMap { $0.url }
                 self.iPad = []
-                self.iPhone = []
             }
 
             public enum CodingKeys: String, CodingKey {
                 case iPhone = "iphone"
                 case iPad = "ipad"
                 case url
+            }
+
+            /// One screenshot: either a URL string, or a dictionary with `imageURL` (or `url`), width and height.
+            private struct Item: Decodable {
+                let url: URL?
+
+                init(from decoder: any Decoder) throws {
+                    if
+                        let single = try? decoder.singleValueContainer(),
+                        let string = try? single.decode(String.self)
+                    {
+                        self.url = URL(string: string)
+                        return
+                    }
+
+                    let container = try decoder.container(keyedBy: ItemKeys.self)
+                    let imageURL: String? = try? container.decodeIfPresent(String.self, forKey: .imageURL)
+                    let plainURL: String? = try? container.decodeIfPresent(String.self, forKey: .url)
+                    self.url = (imageURL ?? plainURL).flatMap { URL(string: $0) }
+                }
+
+                enum ItemKeys: String, CodingKey {
+                    case imageURL, url
+                }
             }
         }
 
@@ -377,6 +414,14 @@ extension ASRepository {
         
         public var currentDescription: String? {
             subtitle ?? localizedDescription
+        }
+
+        /// Screenshots from either key: the older `screenshotURLs` list or the newer `screenshots`.
+        public var allScreenshotURLs: [URL]? {
+            if let urls = screenshotURLs, !urls.isEmpty { return urls }
+            if let urls = screenshots?.iPhone, !urls.isEmpty { return urls }
+            if let urls = screenshots?.iPad, !urls.isEmpty { return urls }
+            return nil
         }
         
         // "UNIQUE" hahaha
