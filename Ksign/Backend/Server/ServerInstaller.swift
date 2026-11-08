@@ -26,10 +26,11 @@ class ServerInstaller: Identifiable, ObservableObject {
 	/// The port the server actually listens on (chosen at start, retried on collisions).
 	private(set) var port: Int = 0
 	/// The server method this installer really uses. It can differ from the user's setting:
-	/// Fully Local silently falls back to Semi Local when the SSL certificate is missing, broken or expired.
-	let serverMethod: Int
+	/// Fully Local silently falls back to Semi Local when the SSL certificate is missing, broken or expired,
+	/// and also when a Fully Local (HTTPS) server cannot bind any port (see `_start`).
+	private(set) var serverMethod: Int
 	/// Host used in every URL served by this installer (computed per install, never cached across network changes).
-	let host: String
+	private(set) var host: String
 	/// Set when the local server could not be started; the install views show it instead of crashing.
 	private(set) var startError: Error?
 	private var _needsShutdown = false
@@ -70,11 +71,31 @@ class ServerInstaller: Identifiable, ObservableObject {
 	}
 
 	private func _start(tls: TLSConfiguration?) {
+		// Try the chosen method first.
+		if _tryStart(tls: tls) { return }
+
+		// Fallback server: a Fully Local (HTTPS) server that cannot bind any port must not block the
+		// install. Downgrade to Semi Local (plain HTTP, manifest from the external generator) and retry,
+		// exactly like the backup install servers in tools such as ESign.
+		if tls != nil {
+			Logger.misc.error("Fully Local could not bind a port; falling back to Semi Local")
+			serverMethod = Self.semiLocal
+			host = Self.resolveHost(for: Self.semiLocal)
+			if _tryStart(tls: nil) { return }
+		}
+
+		// startError holds the last bind error from _tryStart.
+		if startError == nil { startError = ServerInstallerError.serverFailedToStart }
+		Logger.misc.error("Install server failed to start: \(String(describing: self.startError))")
+	}
+
+	/// Sweeps a set of candidate ports for the current host/method and returns true once one binds.
+	/// Clears `startError` on success, sets it to the last bind error on failure.
+	private func _tryStart(tls: TLSConfiguration?) -> Bool {
 		var lastError: Error?
 
-		// A random port can already be in use; try a few before giving up.
-		for _ in 0..<5 {
-			let candidate = Int.random(in: 4000...8000)
+		for attempt in 0..<Self._portAttempts {
+			let candidate = Self._candidatePort(attempt: attempt)
 			let server = Self.setupApp(port: candidate, host: host, tls: tls)
 			_configureRoutes(on: server)
 
@@ -83,7 +104,8 @@ class ServerInstaller: Identifiable, ObservableObject {
 				port = candidate
 				_server = server
 				_needsShutdown = true
-				return
+				startError = nil
+				return true
 			} catch {
 				lastError = error
 				server.shutdown()
@@ -91,7 +113,16 @@ class ServerInstaller: Identifiable, ObservableObject {
 		}
 
 		startError = lastError ?? ServerInstallerError.serverFailedToStart
-		Logger.misc.error("Install server failed to start: \(String(describing: self.startError))")
+		return false
+	}
+
+	private static let _portAttempts = 12
+
+	/// A few stable fallback ports first (like ESign's 8080/8081), then random ones to dodge collisions.
+	private static func _candidatePort(attempt: Int) -> Int {
+		let preferred = [8080, 8081, 8888, 7000]
+		if attempt < preferred.count { return preferred[attempt] }
+		return Int.random(in: 4000...8000)
 	}
 
 	private func _configureRoutes(on server: Application) {
