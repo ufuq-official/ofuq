@@ -43,7 +43,7 @@ final class ZsignHandler {
 			throw SigningFileHandlerError.missingCertifcate
 		}
 		
-        let _ = Zsign.sign(
+        let succeeded = Zsign.sign(
             appPath: _appUrl.relativePath,
             provisionPath: Storage.shared.getFile(.provision, from: cert)?.path ?? "",
             p12Path: Storage.shared.getFile(.certificate, from: cert)?.path ?? "",
@@ -57,10 +57,14 @@ final class ZsignHandler {
                 self.hadError = error
             }
         )
+        // zsign can fail without passing an error; never treat that as a signed app.
+        if !succeeded && hadError == nil {
+            hadError = SigningFileHandlerError.signFailed
+        }
     }
 	
 	func adhocSign() async throws {
-        let _ = Zsign.sign(
+        let succeeded = Zsign.sign(
 			appPath: _appUrl.relativePath,
 			entitlementsPath: _options.appEntitlementsFile?.path ?? "",
 			customIdentifier: _options.appIdentifier ?? "",
@@ -72,6 +76,8 @@ final class ZsignHandler {
                 self.hadError = error
             }
         )
-             
+        if !succeeded && hadError == nil {
+            hadError = SigningFileHandlerError.signFailed
+        }
 	}
 }
