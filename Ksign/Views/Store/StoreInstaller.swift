@@ -86,6 +86,11 @@ final class StoreInstaller: ObservableObject {
 		phases[app.currentUniqueId]
 	}
 
+	/// Whether the store started this download and will show its own messages for it.
+	func handles(_ downloadID: String) -> Bool {
+		_pending[downloadID] != nil
+	}
+
 	/// Downloads, signs and installs `app`.
 	func install(_ app: ASRepository.App) {
 		let id = app.currentUniqueId
@@ -97,7 +102,8 @@ final class StoreInstaller: ObservableObject {
 		}
 
 		let options = OptionsManager.shared.options
-		guard Self.selectedCertificate() != nil || options.doAdhocSigning || options.onlyModify else {
+		let certificate = Self.selectedCertificate()
+		guard certificate != nil || options.doAdhocSigning || options.onlyModify else {
 			_alert(
 				title: .localized("No Certificate"),
 				message: .localized("Please go to settings and import a valid certificate")
@@ -105,10 +111,12 @@ final class StoreInstaller: ObservableObject {
 			return
 		}
 
-		UIImpactFeedbackGenerator(style: .light).impactOccurred()
-		_pending[id] = Pending(bundleID: app.id, started: Date())
-		phases[id] = .downloading
-		_ = DownloadManager.shared.startDownload(from: url, id: id)
+		// Ad-hoc signing and "only modify" do not use the certificate, so there is nothing to check.
+		let usesCertificate = !(options.doAdhocSigning || options.onlyModify)
+		let bundleID = app.id
+		CertificateCheck.confirm(usesCertificate ? certificate : nil) { [weak self] in
+			self?._startDownload(id: id, url: url, bundleID: bundleID)
+		}
 	}
 
 	/// Only downloads `app` into the Library, like before.
@@ -132,6 +140,16 @@ final class StoreInstaller: ObservableObject {
 	}
 
 	// MARK: Steps
+
+	private func _startDownload(id: String, url: URL, bundleID: String?) {
+		// The app may have been started meanwhile (for example a second tap while the alert was shown).
+		guard phases[id] == nil, DownloadManager.shared.getDownload(by: id) == nil else { return }
+
+		UIImpactFeedbackGenerator(style: .light).impactOccurred()
+		_pending[id] = Pending(bundleID: bundleID, started: Date())
+		phases[id] = .downloading
+		_ = DownloadManager.shared.startDownload(from: url, id: id)
+	}
 
 	private func _didImport(_ id: String, attempt: Int = 0) {
 		guard let pending = _pending[id] else { return }

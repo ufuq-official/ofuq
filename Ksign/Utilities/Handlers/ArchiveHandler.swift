@@ -71,10 +71,14 @@ final class ArchiveHandler: NSObject {
 	}
 	
 	func moveToArchive(_ package: URL, shouldOpen: Bool = false) async throws -> URL? {
-		let appendingString = "\(_app.name!)_\(_app.version!)_\(Int(Date().timeIntervalSince1970)).ipa"
+		// A missing name or version used to crash here, and a "/" or ":" in the name broke the path.
+		let name = Self._safeFileName(_app.name ?? _app.identifier ?? "App")
+		let version = Self._safeFileName(_app.version ?? "1.0")
+		let appendingString = "\(name)_\(version)_\(Int(Date().timeIntervalSince1970)).ipa"
 		let dest = _fileManager.archives.appendingPathComponent(appendingString)
-		
-		try? _fileManager.moveItem(
+
+		try _fileManager.createDirectoryIfNeeded(at: _fileManager.archives)
+		try _fileManager.moveItem(
 			at: package,
 			to: dest
 		)
@@ -88,6 +92,13 @@ final class ArchiveHandler: NSObject {
 		return dest
 	}
 	
+	private static func _safeFileName(_ value: String) -> String {
+		let invalid = CharacterSet(charactersIn: "/\\:?%*|\"<>")
+		let cleaned = value.components(separatedBy: invalid).joined(separator: "-")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+		return cleaned.isEmpty ? "App" : cleaned
+	}
+
 	static func getCompressionLevel() -> Int {
 		UserDefaults.standard.integer(forKey: "Feather.compressionLevel")
 	}

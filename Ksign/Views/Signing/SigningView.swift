@@ -297,6 +297,14 @@ extension SigningView {
 			return
 		}
 
+		// Ofuq: warn before signing when the certificate is expired or known to be revoked.
+		let usesCertificate = !(_temporaryOptions.doAdhocSigning || _temporaryOptions.onlyModify)
+		CertificateCheck.confirm(usesCertificate ? _selectedCert() : nil) {
+			_sign()
+		}
+	}
+
+	private func _sign() {
 		let generator = UIImpactFeedbackGenerator(style: .light)
 		generator.impactOccurred()
 		_isLogsPresenting = _optionsManager.options.signingLogs

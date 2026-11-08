@@ -112,9 +112,6 @@ extension SettingsView {
 			Button(.localized("Instagram"), systemImage: "camera") {
 				UIApplication.open(Ofuq.instagram)
 			}
-			Button(.localized("Source Code"), systemImage: "chevron.left.forwardslash.chevron.right") {
-				UIApplication.open(Ofuq.sourceCode)
-			}
 		}
 	}
 	

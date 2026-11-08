@@ -62,8 +62,14 @@ extension ServerInstaller {
 		return Self._encode(baseUrl)
 	}
 
+	/// The install link for this installer. iOS only accepts install manifests served over HTTPS:
+	/// Fully Local serves its own manifest over HTTPS, while Semi Local's local server is plain HTTP,
+	/// so its manifest always comes from the HTTPS generator instead. No path can produce an HTTP manifest link.
 	var iTunesLink: String {
-		_iTunesLink(with: plistEndpoint.absoluteString)
+		if serverMethod == Self.semiLocal || plistEndpoint.scheme != "https" {
+			return iTunesLinkExternal
+		}
+		return _iTunesLink(with: plistEndpoint.absoluteString)
 	}
 
 	var iTunesLinkExternal: String {
@@ -115,8 +121,9 @@ extension ServerInstaller {
 					"url": payloadEndpoint.absoluteString,
 				],
 				[
+					// Served by this local server, so the prompt never depends on an outside link.
 					"kind": "display-image",
-					"url": Ofuq.installIconURL,
+					"url": displayImageLargeEndpoint.absoluteString,
 				],
 			],
 			"metadata": [

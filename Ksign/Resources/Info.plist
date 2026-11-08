@@ -16,10 +16,11 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
-			<string>Owner</string>
+			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>nya.asami.ipa</string>
+				<string>nya.asami.ofuq.ipa</string>
+				<string>com.apple.itunes.ipa</string>
 			</array>
 		</dict>
 		<dict>
@@ -33,7 +34,7 @@
 			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>nya.asami.tipa</string>
+				<string>nya.asami.ofuq.tipa</string>
 			</array>
 		</dict>
 		<dict>
@@ -47,7 +48,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>nya.asami.ksign.cert</string>
+				<string>nya.asami.ofuq.cert</string>
 			</array>
 		</dict>
 	</array>
@@ -114,11 +115,10 @@
 			<key>CFBundleURLIconFile</key>
 			<string>ksign_extension</string>
 			<key>CFBundleURLName</key>
-			<string>nya.asami.ksign</string>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>ofuq</string>
-				<string>ksign</string>
 			</array>
 		</dict>
 	</array>
@@ -149,7 +149,7 @@
 				<string>IPA</string>
 			</dict>
 			<key>UTTypeIdentifier</key>
-			<string>nya.asami.ipa</string>
+			<string>nya.asami.ofuq.ipa</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -181,7 +181,7 @@
 				<string>TIPA</string>
 			</dict>
 			<key>UTTypeIdentifier</key>
-			<string>nya.asami.tipa</string>
+			<string>nya.asami.ofuq.tipa</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -210,7 +210,7 @@
 				<string>KSIGN</string>
 			</dict>
 			<key>UTTypeIdentifier</key>
-			<string>nya.asami.ksign.cert</string>
+			<string>nya.asami.ofuq.cert</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

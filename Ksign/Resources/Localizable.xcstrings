@@ -2182,6 +2182,108 @@
         }
       }
     },
+    "Certificate Problem" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مشكلة في الشهادة"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificate Problem"
+          }
+        }
+      }
+    },
+    "Continue Anyway" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "المتابعة على أي حال"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Anyway"
+          }
+        }
+      }
+    },
+    "This certificate expired on %@. iOS will refuse apps signed with it. Import a valid certificate in Settings > Certificates." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "انتهت صلاحية هذه الشهادة في %@. سيرفض iOS تثبيت التطبيقات الموقّعة بها. استورد شهادة صالحة من الإعدادات > الشهادات."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This certificate expired on %@. iOS will refuse apps signed with it. Import a valid certificate in Settings > Certificates."
+          }
+        }
+      }
+    },
+    "Apple has revoked this certificate. iOS will refuse apps signed with it and show \"integrity could not be verified\". Import a valid certificate in Settings > Certificates." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ألغت Apple هذه الشهادة. سيرفض iOS تثبيت التطبيقات الموقّعة بها وتظهر رسالة \"تعذر التحقق من سلامة التطبيق\". استورد شهادة صالحة من الإعدادات > الشهادات."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple has revoked this certificate. iOS will refuse apps signed with it and show \"integrity could not be verified\". Import a valid certificate in Settings > Certificates."
+          }
+        }
+      }
+    },
+    "Download Failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فشل التحميل"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Failed"
+          }
+        }
+      }
+    },
+    "The server answered with error %@. The download link may be broken or temporarily unavailable." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ردّ الخادم بالخطأ %@. قد يكون رابط التحميل معطلاً أو غير متاح مؤقتاً."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server answered with error %@. The download link may be broken or temporarily unavailable."
+          }
+        }
+      }
+    },
     "Add Source" : {
       "localizations" : {
         "ar" : {

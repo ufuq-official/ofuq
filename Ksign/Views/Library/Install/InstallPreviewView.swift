@@ -15,7 +15,9 @@ struct InstallPreviewView: View {
 	@Environment(\.dismiss) var dismiss
 	
 	// Sharing
-	@AppStorage("Feather.useShareSheetForArchiving") private var _useShareSheet: Bool = false
+	// Same default as the Settings toggle (Archive & Extraction), which shows "on" when nothing was saved:
+	// exporting opens the share sheet, so the IPA can go straight to another signing app (KSign, ESign, ...).
+	@AppStorage("Feather.useShareSheetForArchiving") private var _useShareSheet: Bool = true
 	
 	// Methods
     @AppStorage("Feather.installationMethod") private var _installationMethod: Int = 0

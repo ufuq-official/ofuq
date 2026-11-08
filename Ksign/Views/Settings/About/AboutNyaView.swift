@@ -94,17 +94,6 @@ struct AboutNyaView: View {
 			} footer: {
 				Text(.localized("Ofuq is built on the open-source Ksign and Feather projects and is distributed under the GPL-3.0 license. Thank you to their developers! ❤️"))
 			}
-
-			NBSection(.localized("Source Code")) {
-				_link(
-					title: "ufuq-official/ofuq",
-					subtitle: "GitHub",
-					systemImage: "chevron.left.forwardslash.chevron.right",
-					url: Ofuq.sourceCode
-				)
-			} footer: {
-				Text(Bundle.main.bundleIdentifier ?? "")
-			}
 		}
 		.onAppear {
 			// Show the patch notes once per version.

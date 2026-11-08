@@ -110,6 +110,7 @@ final class CertificateService {
 
 extension UTType {
     static var ksign: UTType {
-        UTType(exportedAs: "nya.asami.ksign.cert")
+        // Ofuq's own identifier, so it does not clash with the original Ksign when both are installed.
+        UTType(exportedAs: "nya.asami.ofuq.cert")
     }
 } 

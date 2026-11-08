@@ -21,8 +21,8 @@ extension ServerInstaller {
 	///   iOS refuses the link, so the caller can present `pageEndpoint` in a Safari sheet as before.
 	func openInstallPrompt(showSafariPage: @escaping () -> Void) {
 		let isSemiLocal = serverMethod == Self.semiLocal
-		// Fully Local serves its own manifest over HTTPS; Semi Local takes it from the external generator.
-		let link = isSemiLocal ? iTunesLinkExternal : iTunesLink
+		// Always an HTTPS manifest: Fully Local serves its own, Semi Local takes it from the external generator.
+		let link = iTunesLink
 		let useSafari = isSemiLocal && Self.semiLocalUsesSafari
 
 		DispatchQueue.main.async {

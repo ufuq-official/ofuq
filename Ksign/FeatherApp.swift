@@ -59,7 +59,8 @@ struct FeatherApp: App {
 	}
 
 	private func _handleURL(_ url: URL) {
-		// "ofuq://" is the app's own scheme; "ksign://" keeps working for links made for the original app.
+		// Ofuq only registers "ofuq://", so it never competes with the original Ksign for "ksign://" links
+		// when both apps are installed. A "ksign://" link that still reaches Ofuq is handled the same way.
 		if url.scheme == "ofuq" || url.scheme == "ksign" {
 			if let fullPath = url.validatedScheme(after: "/source/") {
 				FR.handleSource(fullPath) { }
