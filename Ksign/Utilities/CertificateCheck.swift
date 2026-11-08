@@ -27,6 +27,25 @@ enum CertificateCheck {
 		return nil
 	}
 
+	/// The single app ID the certificate's provisioning profile allows (without the team prefix), or nil when
+	/// the profile is a wildcard ("TEAMID.*"). iOS refuses an app whose bundle ID is not covered by its embedded
+	/// profile with the same "integrity could not be verified" message as a revoked certificate, so apps signed
+	/// with such a profile must use exactly this bundle ID.
+	static func explicitAppID(for certificate: CertificatePair) -> String? {
+		guard
+			let decoded = Storage.shared.getProvisionFileDecoded(for: certificate),
+			let entitlements = decoded.Entitlements,
+			let appID = entitlements["application-identifier"]?.value as? String
+		else {
+			return nil
+		}
+		let identifier = appID.split(separator: ".").dropFirst().joined(separator: ".")
+		guard !identifier.isEmpty, !identifier.contains("*") else {
+			return nil
+		}
+		return identifier
+	}
+
 	/// Runs `proceed` right away when the certificate looks fine (or when no certificate is used).
 	/// Otherwise explains the problem and runs `proceed` only if the user taps "Continue Anyway".
 	/// Must be called on the main queue.
