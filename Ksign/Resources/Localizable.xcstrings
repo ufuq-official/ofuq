@@ -1349,6 +1349,74 @@
         }
       }
     },
+    "The signed app was not found. Please try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم يُعثر على التطبيق الموقّع. يرجى المحاولة مرة أخرى."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The signed app was not found. Please try again."
+          }
+        }
+      }
+    },
+    "The app was not signed with the certificate, so it was not sent for installation. Check the certificate in Settings > Certificates and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم يُوقَّع التطبيق بالشهادة، لذلك لم يُرسَل للتثبيت. تحقّق من الشهادة في الإعدادات > الشهادات ثم حاول مرة أخرى."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The app was not signed with the certificate, so it was not sent for installation. Check the certificate in Settings > Certificates and try again."
+          }
+        }
+      }
+    },
+    "The certificate selected for this install was removed. Please choose a certificate in Settings and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حُذفت الشهادة المختارة لهذا التثبيت. يرجى اختيار شهادة من الإعدادات ثم المحاولة مرة أخرى."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The certificate selected for this install was removed. Please choose a certificate in Settings and try again."
+          }
+        }
+      }
+    },
+    "The install manifest service answered with error %@. Switch the server to Fully Local in Settings > Installation, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ردّت خدمة ملف التثبيت (manifest) بالخطأ %@. غيّر الخادم إلى «محلي بالكامل» من الإعدادات > التثبيت ثم حاول مرة أخرى."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The install manifest service answered with error %@. Switch the server to Fully Local in Settings > Installation, then try again."
+          }
+        }
+      }
+    },
     "Design" : {
       "extractionState" : "manual",
       "localizations" : {
