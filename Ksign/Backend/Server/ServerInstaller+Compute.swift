@@ -51,15 +51,18 @@ extension ServerInstaller {
 		value.addingPercentEncoding(withAllowedCharacters: _queryValueAllowed) ?? value
 	}
 
-	var externalServerLink: String {
-		let baseUrl = "https://api.palera.in/genPlist"
+	/// The HTTPS manifest Semi Local hands to iOS, generated outside from the app's details.
+	var externalManifestURL: String {
+		"https://api.palera.in/genPlist"
 			+ "?bundleid=\(Self._encode(manifestIdentifier))"
 			+ "&name=\(Self._encode(manifestName))"
 			+ "&version=\(Self._encode(manifestVersion))"
 			+ "&fetchurl=\(Self._encode(payloadEndpoint.absoluteString))"
+	}
 
+	var externalServerLink: String {
 		// Encode once more because the whole link is itself the value of itms-services' "url" parameter.
-		return Self._encode(baseUrl)
+		Self._encode(externalManifestURL)
 	}
 
 	/// The install link for this installer. iOS only accepts install manifests served over HTTPS:
@@ -108,7 +111,7 @@ extension ServerInstaller {
 	var html: String {
 		"""
 		<html style="background-color: black;">
-		<script type="text/javascript">window.location="\(iTunesLinkExternal)"</script>
+		<script type="text/javascript">window.location="\(iTunesLink)"</script>
 		</html>
 		"""
 	}
