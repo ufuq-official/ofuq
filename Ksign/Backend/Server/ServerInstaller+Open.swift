@@ -49,24 +49,63 @@ extension ServerInstaller {
 				Logger.misc.warning("Local server did not confirm readiness; opening the install link anyway")
 			}
 
-			DispatchQueue.main.async {
-				if useSafari {
-					showSafariPage()
-					return
-				}
+			// Semi Local: iOS reads the manifest from the external generator. When that service refuses the
+			// request (403, ...), iOS fails without saying why, so tell the user instead of opening the link.
+			self.verifyExternalManifest(isSemiLocal: isSemiLocal) { [weak self] refusedStatus in
+				DispatchQueue.main.async {
+					guard let self else { return }
 
-				guard let url = URL(string: link) else {
-					if isSemiLocal { showSafariPage() }
-					return
-				}
+					if let refusedStatus {
+						let error = ServerInstallerError.manifestRefused(refusedStatus)
+						Logger.misc.error("External manifest refused with HTTP \(refusedStatus)")
+						self.viewModel.status = .broken(error)
+						UIAlertController.showAlertWithOk(title: .localized("Install"), message: error.localizedDescription)
+						return
+					}
 
-				UIApplication.shared.open(url, options: [:]) { opened in
-					if !opened && isSemiLocal {
-						DispatchQueue.main.async { showSafariPage() }
+					if useSafari {
+						showSafariPage()
+						return
+					}
+
+					guard let url = URL(string: link) else {
+						if isSemiLocal { showSafariPage() }
+						return
+					}
+
+					UIApplication.shared.open(url, options: [:]) { opened in
+						if !opened && isSemiLocal {
+							DispatchQueue.main.async { showSafariPage() }
+						}
 					}
 				}
 			}
 		}
+	}
+
+	/// Semi Local only: asks the external generator for the manifest once, the way iOS will.
+	/// Calls back with the HTTP status when it refused (not 2xx), or nil when it answered fine, could not be
+	/// reached (best effort, the link is opened anyway) or when this installer serves its own manifest.
+	func verifyExternalManifest(isSemiLocal: Bool, completion: @escaping (Int?) -> Void) {
+		guard isSemiLocal, let url = URL(string: externalManifestURL) else {
+			completion(nil)
+			return
+		}
+
+		let config = URLSessionConfiguration.ephemeral
+		config.timeoutIntervalForRequest = 5
+		config.waitsForConnectivity = false
+		config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+		let session = URLSession(configuration: config)
+
+		session.dataTask(with: url) { _, response, _ in
+			session.finishTasksAndInvalidate()
+			guard let http = response as? HTTPURLResponse else {
+				completion(nil)
+				return
+			}
+			completion((200...299).contains(http.statusCode) ? nil : http.statusCode)
+		}.resume()
 	}
 
 	/// Best-effort readiness check: pings the local `/install` route until it answers or the timeout passes.
