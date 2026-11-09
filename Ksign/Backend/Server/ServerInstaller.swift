@@ -128,29 +128,38 @@ class ServerInstaller: Identifiable, ObservableObject {
 	private func _configureRoutes(on server: Application) {
 		server.get("*") { [weak self] req in
 			guard let self else { return Response(status: .badGateway) }
-			switch req.url.path {
-			case plistEndpoint.path:
+			// iOS asks for exactly the URLs in the manifest; comparing without case also covers a proxy
+			// that changes the case of the UUID.
+			switch req.url.path.lowercased() {
+			case plistEndpoint.path.lowercased():
 				self._updateStatus(.sendingManifest)
 				return Response(status: .ok, version: req.version, headers: [
-					"Content-Type": "text/xml",
+					"Content-Type": "text/xml; charset=utf-8",
+					"Cache-Control": "no-store",
 				], body: .init(data: installManifestData))
-			case displayImageSmallEndpoint.path:
+			case displayImageSmallEndpoint.path.lowercased():
 				return Response(status: .ok, version: req.version, headers: [
 					"Content-Type": "image/png",
 				], body: .init(data: displayImageSmallData))
-			case displayImageLargeEndpoint.path:
+			case displayImageLargeEndpoint.path.lowercased():
 				return Response(status: .ok, version: req.version, headers: [
 					"Content-Type": "image/png",
 				], body: .init(data: displayImageLargeData))
-			case payloadEndpoint.path:
-				guard let packageUrl = packageUrl else {
+			case payloadEndpoint.path.lowercased():
+				// The signed IPA must exist and be readable before iOS starts the install.
+				guard
+					let packageUrl = packageUrl,
+					FileManager.default.isReadableFile(atPath: packageUrl.path)
+				else {
+					Logger.misc.error("Install payload requested but the signed IPA is not available")
 					return Response(status: .notFound)
 				}
 
 				self._updateStatus(.sendingPayload)
 
-				return req.fileio.streamFile(
-					at: packageUrl.path
+				let response: Response = req.fileio.streamFile(
+					at: packageUrl.path,
+					mediaType: HTTPMediaType(type: "application", subType: "octet-stream")
 				) { result in
                     switch result {
                     case .success:
@@ -159,9 +168,12 @@ class ServerInstaller: Identifiable, ObservableObject {
                         self._updateStatus(.broken(error))
                     }
 				}
+				response.headers.replaceOrAdd(name: .cacheControl, value: "no-store")
+				return response
 			case "/install":
 				var headers = HTTPHeaders()
-				headers.add(name: .contentType, value: "text/html")
+				headers.add(name: .contentType, value: "text/html; charset=utf-8")
+				headers.add(name: .cacheControl, value: "no-store")
 				return Response(status: .ok, headers: headers, body: .init(string: self.html))
 			default:
 				return Response(status: .notFound)
@@ -206,11 +218,18 @@ enum ServerInstallerError: LocalizedError {
 	case serverFailedToStart
 	case certificateExpired(Date)
 	case certificateNotYetValid(Date)
+	/// The external manifest generator used by Semi Local refused the request (for example 403).
+	case manifestRefused(Int)
 
 	var errorDescription: String? {
 		switch self {
 		case .serverFailedToStart:
 			return .localized("Could not start the local install server. Please close the app completely and try again.")
+		case .manifestRefused(let code):
+			return .localized(
+				"The install manifest service answered with error %@. Switch the server to Fully Local in Settings > Installation, then try again.",
+				arguments: String(code)
+			)
 		case .certificateExpired(let date):
 			return .localized("The SSL certificate expired on %@.", arguments: date.formatted(date: .abbreviated, time: .omitted))
 		case .certificateNotYetValid(let date):
