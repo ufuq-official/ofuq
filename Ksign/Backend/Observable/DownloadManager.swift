@@ -46,6 +46,10 @@ class Download: Identifiable, @unchecked Sendable, ObservableObject {
     var resumeData: Data?
 	/// How many times this download was retried after a network or server error.
 	var retries: Int = 0
+	/// Set once the download was started again from its original link after the server refused it (403, ...).
+	var restartedFresh = false
+	/// Sends a Safari user agent: some hosts refuse (403) downloads that do not look like a browser.
+	var usesBrowserUserAgent = false
 
 	let id: String
 	let url: URL
@@ -193,13 +197,19 @@ class DownloadManager: NSObject, ObservableObject {
 		_updateBackgroundAudioState()
     }
 
+	static let browserUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+
 	/// Starts the download again, from where it stopped when the server sent resume data.
 	private func _restart(_ download: Download) {
 		let task: URLSessionDownloadTask
 		if let resumeData = download.resumeData {
 			task = _session.downloadTask(withResumeData: resumeData)
 		} else {
-			task = _session.downloadTask(with: download.url)
+			var request = URLRequest(url: download.url)
+			if download.usesBrowserUserAgent {
+				request.setValue(Self.browserUserAgent, forHTTPHeaderField: "User-Agent")
+			}
+			task = _session.downloadTask(with: request)
 		}
 		download.resumeData = nil
 		download.task = task
@@ -257,6 +267,13 @@ class DownloadManager: NSObject, ObservableObject {
 
 	private static func _isRetryable(statusCode: Int) -> Bool {
 		statusCode == 408 || statusCode == 429 || statusCode >= 500
+	}
+
+	/// Answers that usually mean the temporary link expired, not that the app is gone: GitHub and most CDNs
+	/// redirect to a signed link valid for about an hour, and a resumed or retried download goes back to that
+	/// expired link and gets 403. Asking the original link again gives a fresh one.
+	private static func _needsFreshLink(statusCode: Int) -> Bool {
+		statusCode == 401 || statusCode == 403 || statusCode == 410 || statusCode == 416
 	}
 
 	/// Retries `download` after a short wait, or reports `error` once the retries are used up.
@@ -379,6 +396,16 @@ extension DownloadManager: URLSessionDownloadDelegate {
 			DispatchQueue.main.async {
 				guard self.getDownload(by: download.id) === download else { return }
 				download.resumeData = nil
+
+				// Once: start over from the original link (a fresh signed redirect), looking like Safari.
+				if Self._needsFreshLink(statusCode: status), !download.restartedFresh {
+					download.restartedFresh = true
+					download.usesBrowserUserAgent = true
+					print("Download \(download.id) refused with \(status), starting again from the original link")
+					self._restart(download)
+					return
+				}
+
 				self._retryOrFail(
 					download,
 					error: DownloadError.httpStatus(status),
