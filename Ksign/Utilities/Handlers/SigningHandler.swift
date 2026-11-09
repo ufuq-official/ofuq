@@ -28,7 +28,9 @@ final class SigningHandler: NSObject {
 	// throw an error
 	var appIcon: UIImage?
 	var appCertificate: CertificatePair?
-	
+	/// The UUID the signed app is saved under (Documents/App/Signed/<uuid> and the `Signed` record).
+	var uuid: String { _uuid }
+
 	init(app: AppInfoPresentable, options: Options = OptionsManager.shared.options) {
 		self._app = app
 		self._options = options
