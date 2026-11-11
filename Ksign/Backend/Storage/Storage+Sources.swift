@@ -93,15 +93,28 @@ extension Storage {
 
 
 	func addBuiltInSources() {
-		// Official sources published by the developers of each app (checked 2026-11-08).
+		// Official and custom sources added (checked 2026-11-08).
 		let builtInSourceURLs = [
-			"https://apps.altstore.io",                                    // AltStore: Delta, Clip
-			"https://apps.sidestore.io",                                   // SideStore
-			"https://community-apps.sidestore.io/sidecommunity.json",      // SideStore Team Picks: PPSSPP, RetroArch, iSH, ...
-			"https://alt.getutm.app",                                      // UTM
-			"https://provenance-emu.com/apps.json",                        // Provenance
-			"https://xitrix.github.io/iTorrent/AltStore.json",             // iTorrent
-			"https://github.com/LiveContainer/LiveContainer/releases/download/1.0/apps.json" // LiveContainer
+			// المصادر التي أرسلتها:
+			"https://raw.githubusercontent.com/M1noa/Sideload-Tools/main/merged-apps-original-links-no-pal.json",
+			"https://raw.githubusercontent.com/drphe/KhoIPA/main/upload/ipaomtk.json",
+			"https://delvek.net/repo.json",
+			"https://ipa.cypwn.xyz/cypwn.json",
+			"https://raw.githubusercontent.com/apptesters-org/AppTesters_Repo/main/apps.json",
+			"https://apps.altstore.io",
+			"https://fastsign.dev/repo.json",
+			
+			// المصادر الأصلية والمضافة مسبقاً:
+			"https://apps.sidestore.io",
+			"https://community-apps.sidestore.io/sidecommunity.json",
+			"https://alt.getutm.app",
+			"https://provenance-emu.com/apps.json",
+			"https://xitrix.github.io/iTorrent/AltStore.json",
+			"https://github.com/LiveContainer/LiveContainer/releases/download/1.0/apps.json",
+			
+			// مصادر إضافية ممتازة ومشهورة لتطبيقات الـ IPA والبلس:
+			"https://qnblackcat.github.io/AltStore/apps.json", // مصادر يوتيوب بلس وتطبيقات معدلة شهيرة
+			"https://ipa.kenhtao.net/kenhtao.json"             // مستودع مميز لتطبيقات الألسن والبلس
 		]
 		
 		for urlString in builtInSourceURLs {
