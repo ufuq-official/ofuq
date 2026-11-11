@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import UIKit
+import CoreData
 import Nuke
 import OSLog
 import IDeviceSwift
@@ -74,13 +76,15 @@ struct FeatherApp: App {
 			}
 		} else {
 			if url.pathExtension == "ipa" || url.pathExtension == "tipa" {
+				// Shared from Files, Telegram, AirDrop, ...: import into the Library and sign it right away
+				// with the selected certificate, so it lands ready to install without opening the signing screen.
 				if FileManager.default.isFileFromFileProvider(at: url) {
 					guard url.startAccessingSecurityScopedResource() else { return }
-					FR.handlePackageFile(url) { _ in }
+					ImportSigner.shared.importAndSign(url)
 				} else {
-					FR.handlePackageFile(url) { _ in }
+					ImportSigner.shared.importAndSign(url)
 				}
-				
+
 				return
 			}
 			
@@ -89,7 +93,102 @@ struct FeatherApp: App {
             }
 		}
 	}
-	
+
+}
+
+// MARK: - ImportSigner
+/// Imports an .ipa opened from Share / Files / another app, then signs it with the selected certificate —
+/// the same forced real signature the Store uses — so the shared app lands in the Library ready to install.
+final class ImportSigner {
+	static let shared = ImportSigner()
+	private init() {}
+
+	private var _claimed = Set<String>()
+
+	/// Imports the package at `url`, then signs the freshly imported app.
+	func importAndSign(_ url: URL) {
+		let started = Date()
+		FR.handlePackageFile(url) { [weak self] error in
+			guard let self else { return }
+			if let error {
+				self._alert(title: .localized("Install"), message: error.localizedDescription)
+				return
+			}
+			self._signLatestImported(since: started)
+		}
+	}
+
+	private func _signLatestImported(since date: Date, attempt: Int = 0) {
+		guard let imported = _latestImported(since: date) else {
+			// The database can take a moment to show the new app.
+			if attempt < 5 {
+				DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+					self?._signLatestImported(since: date, attempt: attempt + 1)
+				}
+			}
+			return
+		}
+
+		if let uuid = imported.uuid { _claimed.insert(uuid) }
+
+		// Installing needs a real signature; without a certificate the app stays imported but unsigned.
+		guard let certificate = StoreInstaller.selectedCertificate() else {
+			_alert(
+				title: .localized("No Certificate"),
+				message: .localized("Please go to settings and import a valid certificate")
+			)
+			return
+		}
+
+		let saved = OptionsManager.shared.options
+		var options = saved
+		// Always a real signature for an install; these two would skip it.
+		options.onlyModify = false
+		options.doAdhocSigning = false
+
+		if saved.ppqProtection, let identifier = imported.identifier, certificate.ppQCheck {
+			options.appIdentifier = "\(identifier).\(saved.ppqString)"
+		}
+		if let identifier = imported.identifier, let newIdentifier = options.identifiers[identifier] {
+			options.appIdentifier = newIdentifier
+		}
+		if let name = imported.name, let newName = options.displayNames[name] {
+			options.appName = newName
+		}
+
+		let finalOptions = options
+		FR.signPackageFile(imported, using: finalOptions, icon: nil, certificate: certificate) { [weak self] error in
+			guard let self else { return }
+			if let error {
+				self._alert(title: .localized("Signing"), message: error.localizedDescription)
+				return
+			}
+			if finalOptions.removeApp {
+				Storage.shared.deleteApp(for: imported)
+			}
+			self._alert(
+				title: .localized("Install"),
+				message: .localized("The app was signed and added to your Library.")
+			)
+		}
+	}
+
+	private func _latestImported(since date: Date) -> Imported? {
+		let request = NSFetchRequest<Imported>(entityName: "Imported")
+		request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+		request.predicate = NSPredicate(format: "date >= %@", date.addingTimeInterval(-2) as NSDate)
+		guard let results = try? Storage.shared.context.fetch(request) else { return nil }
+		return results.first { app in
+			guard let uuid = app.uuid else { return true }
+			return !_claimed.contains(uuid)
+		}
+	}
+
+	private func _alert(title: String, message: String) {
+		Task { @MainActor in
+			UIAlertController.showAlertWithOk(title: title, message: message)
+		}
+	}
 }
 
 class AppDelegate: NSObject, UIApplicationDelegate {
