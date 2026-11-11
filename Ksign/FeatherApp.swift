@@ -108,6 +108,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             _initializeBuiltInSources()
             UserDefaults.standard.set(true, forKey: "hasInitializedBuiltInSources")
         }
+        _removeRetiredBuiltInSources()
         // Ofuq: sources added or removed on GitHub (sources/ folder of the repository).
         RemoteSources.sync()
 
@@ -123,8 +124,27 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
     
-    private func _initializeBuiltInSources() { 
+    private func _initializeBuiltInSources() {
         Storage.shared.addBuiltInSources()
+    }
+
+    /// Ofuq: built-in sources that went offline (removed from `addBuiltInSources` on 2026-11-11).
+    /// Built-in sources are only added on the first launch, so apps installed earlier may still have them:
+    /// they are taken out once. Added again by hand later, they stay.
+    private func _removeRetiredBuiltInSources() {
+        let key = "ofuq.retiredBuiltInSources.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+
+        let retired: Set<String> = [
+            "https://qnblackcat.github.io/AltStore/apps.json",
+            "https://ipa.kenhtao.net/kenhtao.json",
+        ]
+        for source in Storage.shared.getSources() {
+            guard let url = source.sourceURL, retired.contains(url.absoluteString) else { continue }
+            Storage.shared.deleteSource(for: source)
+            SourceCache.remove(for: url)
+        }
+        UserDefaults.standard.set(true, forKey: key)
     }
     
     private func _createPipeline() {

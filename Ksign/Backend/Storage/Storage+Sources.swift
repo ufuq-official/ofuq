@@ -111,10 +111,8 @@ extension Storage {
 			"https://provenance-emu.com/apps.json",
 			"https://xitrix.github.io/iTorrent/AltStore.json",
 			"https://github.com/LiveContainer/LiveContainer/releases/download/1.0/apps.json",
-			
-			// مصادر إضافية ممتازة ومشهورة لتطبيقات الـ IPA والبلس:
-			"https://qnblackcat.github.io/AltStore/apps.json", // مصادر يوتيوب بلس وتطبيقات معدلة شهيرة
-			"https://ipa.kenhtao.net/kenhtao.json"             // مستودع مميز لتطبيقات الألسن والبلس
+			// Removed 2026-11-11, no longer online: qnblackcat.github.io/AltStore (404), ipa.kenhtao.net (530).
+			// AppDelegate also takes them out of apps that added them before.
 		]
 		
 		// Silent: a source that is down on first launch must not greet the user with an error alert.
