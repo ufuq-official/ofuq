@@ -1203,6 +1203,20 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Sort by" } }
       }
     },
+    "Add to Favorites" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : { "stringUnit" : { "state" : "translated", "value" : "إضافة إلى المفضّلة" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add to Favorites" } }
+      }
+    },
+    "Remove from Favorites" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : { "stringUnit" : { "state" : "translated", "value" : "إزالة من المفضّلة" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove from Favorites" } }
+      }
+    },
     "Newest first" : {
       "extractionState" : "manual",
       "localizations" : {
