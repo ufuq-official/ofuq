@@ -20,7 +20,9 @@ class ServerInstaller: Identifiable, ObservableObject {
 	/// 0 = Fully Local (HTTPS with the backloop.dev certificate), 1 = Semi Local (HTTP + external manifest).
 	static let fullyLocal = 0
 	static let semiLocal = 1
-	static let defaultServerMethod = semiLocal
+	// Ofuq default: Fully Local (self-contained HTTPS install, no external manifest service).
+	// It automatically falls back to Semi Local when the SSL certificate is missing or invalid.
+	static let defaultServerMethod = fullyLocal
 
 	let id = UUID()
 	/// The port the server actually listens on (chosen at start, retried on collisions).
