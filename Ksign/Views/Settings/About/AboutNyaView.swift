@@ -56,9 +56,9 @@ struct AboutNyaView: View {
 			NBSection(.localized("Developer")) {
 				_link(
 					title: Ofuq.developer,
-					subtitle: .localized("Developer of Ofuq"),
+					subtitle: "@wm3h",
 					systemImage: "person.crop.circle.fill",
-					url: Ofuq.instagram
+					url: Ofuq.developerInstagram
 				)
 			}
 
