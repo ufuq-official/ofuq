@@ -26,6 +26,7 @@ struct LibraryView: View {
 	@State private var _searchText = ""
 	@State private var _selectedTab: Int = 0 // 0 for Downloaded, 1 for Signed
 	@AppStorage("ofuq.librarySort") private var _sortRaw: Int = 0 // 0 newest, 1 oldest, 2 name
+	@ObservedObject private var _favorites = LibraryFavorites.shared
 
 	// MARK: Edit Mode
     @State private var _isEditMode: EditMode = .inactive
@@ -41,14 +42,20 @@ struct LibraryView: View {
 		}
 		func date(_ app: T) -> Date { (app.value(forKey: "date") as? Date) ?? .distantPast }
 		func name(_ app: T) -> String { (app.value(forKey: "name") as? String) ?? "" }
+		let sorted: [T]
 		switch _sortRaw {
 		case 1: // oldest first
-			return filtered.sorted { date($0) < date($1) }
+			sorted = filtered.sorted { date($0) < date($1) }
 		case 2: // name A–Z
-			return filtered.sorted { name($0).localizedCaseInsensitiveCompare(name($1)) == .orderedAscending }
+			sorted = filtered.sorted { name($0).localizedCaseInsensitiveCompare(name($1)) == .orderedAscending }
 		default: // newest first
-			return filtered.sorted { date($0) > date($1) }
+			sorted = filtered.sorted { date($0) > date($1) }
 		}
+		// Pin favourites to the top, keeping their sorted order.
+		func uuid(_ app: T) -> String? { app.value(forKey: "uuid") as? String }
+		let favored = sorted.filter { _favorites.isFavorite(uuid($0)) }
+		let others = sorted.filter { !_favorites.isFavorite(uuid($0)) }
+		return favored + others
 	}
 	
 	private var _filteredSignedApps: [Signed] {
@@ -305,5 +312,34 @@ extension LibraryView {
 		DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
 			_selectedApps.removeAll()
 		}
+	}
+}
+
+// MARK: - LibraryFavorites
+/// Favourite apps, kept as a set of app UUIDs in UserDefaults (no Core Data change), so the choice
+/// survives restarts and the Library can pin favourites to the top.
+final class LibraryFavorites: ObservableObject {
+	static let shared = LibraryFavorites()
+	private let _key = "ofuq.libraryFavorites"
+
+	@Published private(set) var ids: Set<String> = []
+
+	private init() {
+		ids = Set(UserDefaults.standard.stringArray(forKey: _key) ?? [])
+	}
+
+	func isFavorite(_ uuid: String?) -> Bool {
+		guard let uuid else { return false }
+		return ids.contains(uuid)
+	}
+
+	func toggle(_ uuid: String?) {
+		guard let uuid else { return }
+		if ids.contains(uuid) {
+			ids.remove(uuid)
+		} else {
+			ids.insert(uuid)
+		}
+		UserDefaults.standard.set(Array(ids), forKey: _key)
 	}
 }
