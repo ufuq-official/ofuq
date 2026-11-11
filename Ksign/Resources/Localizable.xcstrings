@@ -1196,6 +1196,34 @@
         }
       }
     },
+    "Sort by" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : { "stringUnit" : { "state" : "translated", "value" : "الترتيب حسب" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sort by" } }
+      }
+    },
+    "Newest first" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : { "stringUnit" : { "state" : "translated", "value" : "الأحدث أولاً" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Newest first" } }
+      }
+    },
+    "Oldest first" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : { "stringUnit" : { "state" : "translated", "value" : "الأقدم أولاً" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Oldest first" } }
+      }
+    },
+    "Name (A–Z)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : { "stringUnit" : { "state" : "translated", "value" : "الاسم (أ–ي)" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Name (A–Z)" } }
+      }
+    },
     "Category" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1362,6 +1390,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The signed app was not found. Please try again."
+          }
+        }
+      }
+    },
+    "The app was signed and added to your Library." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم توقيع التطبيق وإضافته إلى مكتبتك."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The app was signed and added to your Library."
           }
         }
       }
