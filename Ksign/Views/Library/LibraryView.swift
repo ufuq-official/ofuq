@@ -25,7 +25,8 @@ struct LibraryView: View {
 	@State private var _alertDownloadString: String = "" // for _isDownloadingPresenting
 	@State private var _searchText = ""
 	@State private var _selectedTab: Int = 0 // 0 for Downloaded, 1 for Signed
-	
+	@AppStorage("ofuq.librarySort") private var _sortRaw: Int = 0 // 0 newest, 1 oldest, 2 name
+
 	// MARK: Edit Mode
     @State private var _isEditMode: EditMode = .inactive
 	@State private var _selectedApps: Set<String> = []
@@ -34,9 +35,19 @@ struct LibraryView: View {
 	
 	// horror
 	private func filteredAndSortedApps<T>(from apps: FetchedResults<T>) -> [T] where T: NSManagedObject {
-		apps.filter {
+		let filtered = apps.filter {
 			_searchText.isEmpty ||
 			(($0.value(forKey: "name") as? String)?.localizedCaseInsensitiveContains(_searchText) ?? false)
+		}
+		func date(_ app: T) -> Date { (app.value(forKey: "date") as? Date) ?? .distantPast }
+		func name(_ app: T) -> String { (app.value(forKey: "name") as? String) ?? "" }
+		switch _sortRaw {
+		case 1: // oldest first
+			return filtered.sorted { date($0) < date($1) }
+		case 2: // name A–Z
+			return filtered.sorted { name($0).localizedCaseInsensitiveCompare(name($1)) == .orderedAscending }
+		default: // newest first
+			return filtered.sorted { date($0) > date($1) }
 		}
 	}
 	
@@ -161,6 +172,17 @@ struct LibraryView: View {
 						.disabled(_selectedApps.isEmpty)
 					}
 				} else {
+					ToolbarItem(placement: .topBarTrailing) {
+						Menu {
+							Picker(.localized("Sort by"), selection: $_sortRaw) {
+								Text(.localized("Newest first")).tag(0)
+								Text(.localized("Oldest first")).tag(1)
+								Text(.localized("Name (A–Z)")).tag(2)
+							}
+						} label: {
+							Image(systemName: "arrow.up.arrow.down")
+						}
+					}
 					NBToolbarMenu(
 						systemImage: "plus",
 						style: .icon,
