@@ -550,10 +550,14 @@ final class StoreCatalog: ObservableObject {
 
 	private var _isRefreshing = false
 	private var _cancellable: AnyCancellable?
+	/// The heavy catalog work (classifying every app of every source) runs here, off the main thread,
+	/// so adding many large sources no longer freezes the interface.
+	private let _rebuildQueue = DispatchQueue(label: "ofuq.storeCatalog.rebuild", qos: .userInitiated)
 
 	private init() {
 		_cancellable = SourcesViewModel.shared.$sources
-			.receive(on: DispatchQueue.main)
+			// Sources come back in batches; coalesce the burst into a single rebuild instead of one per batch.
+			.debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
 			.sink { [weak self] sources in
 				guard let self, !self._isRefreshing else { return }
 				self._rebuild(from: sources)
@@ -633,10 +637,39 @@ final class StoreCatalog: ObservableObject {
 	}
 
 	private func _rebuild(from sources: [AltSource: ASRepository]) {
+		// `ASRepository` is a value type, so the heavy work can safely leave the main thread.
+		let repositories = Array(sources.values)
+		_rebuildQueue.async { [weak self] in
+			guard let self else { return }
+			let result = Self._computeCatalog(from: repositories)
+			DispatchQueue.main.async {
+				self.games = result.games
+				self.nonGames = result.nonGames
+				self.featured = result.featured
+				self.suggestions = result.suggestions
+				self.sourceNames = result.sourceNames
+				self.hasDownloadCounts = result.hasDownloadCounts
+				self.apps = result.apps
+			}
+		}
+	}
+
+	/// The computed catalog, built off the main thread and then applied on it in one step.
+	private struct _Catalog {
+		var apps: [StoreApp] = []
+		var games: [StoreApp] = []
+		var nonGames: [StoreApp] = []
+		var featured: [StoreApp] = []
+		var suggestions: [StoreApp] = []
+		var sourceNames: [String] = []
+		var hasDownloadCounts = false
+	}
+
+	private static func _computeCatalog(from repositories: [ASRepository]) -> _Catalog {
 		var byKey: [String: StoreApp] = [:]
 		var names = Set<String>()
 
-		for repository in sources.values {
+		for repository in repositories {
 			if let name = repository.name, !name.isEmpty {
 				names.insert(name)
 			}
@@ -667,12 +700,14 @@ final class StoreCatalog: ObservableObject {
 			return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
 		}
 
-		games = sorted.filter { $0.isGame }
-		nonGames = sorted.filter { !$0.isGame }
-		featured = sorted.filter { $0.isFeatured }
-		suggestions = Array(sorted.shuffled().prefix(15))
-		sourceNames = names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-		hasDownloadCounts = sorted.contains { $0.downloads != nil }
-		apps = sorted
+		var catalog = _Catalog()
+		catalog.games = sorted.filter { $0.isGame }
+		catalog.nonGames = sorted.filter { !$0.isGame }
+		catalog.featured = sorted.filter { $0.isFeatured }
+		catalog.suggestions = Array(sorted.shuffled().prefix(15))
+		catalog.sourceNames = names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+		catalog.hasDownloadCounts = sorted.contains { $0.downloads != nil }
+		catalog.apps = sorted
+		return catalog
 	}
 }
