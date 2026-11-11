@@ -189,29 +189,57 @@ enum FR {
 	}
 	#endif
 	
+	/// Adds the source at `urlString`. `competion` runs on the main queue once it was added.
+	///
+	/// Ofuq: the downloaded JSON goes straight into the source cache, so the store shows the new source
+	/// without downloading it a second time, and the database is only touched on the main queue.
+	/// - Parameters:
+	///   - silent: no alert on failure (the built-in and GitHub sources are added in the background).
+	///   - onDuplicate: called on the main queue instead of the "already added" alert.
 	static func handleSource(
 		_ urlString: String,
+		silent: Bool = false,
+		onDuplicate: (() -> Void)? = nil,
 		competion: @escaping () -> Void
 	) {
-		guard let url = URL(string: urlString) else { return }
-		
-		NBFetchService().fetch<ASRepository>(from: url) { (result: Result<ASRepository, Error>) in
-			switch result {
-			case .success(let data):
-				let id = data.id ?? url.absoluteString
-				
-				if !Storage.shared.sourceExists(id) {
-					Storage.shared.addSource(url, repository: data, id: id) { _ in
-						competion()
+		var trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+		// "example.com/repo.json" typed without the scheme.
+		if !trimmed.isEmpty, !trimmed.contains("://") {
+			trimmed = "https://" + trimmed
+		}
+		guard let url = URL(string: trimmed), url.scheme != nil, url.host != nil else {
+			if !silent {
+				UIAlertController.showAlertWithOk(title: .localized("Error"), message: .localized("This link is not valid."))
+			}
+			return
+		}
+
+		Task.detached(priority: .userInitiated) {
+			let result = await SourceCache.fetch(url: url, conditional: false)
+
+			await MainActor.run {
+				switch result {
+				case .updated(let repository):
+					let id = repository.id ?? url.absoluteString
+
+					if Storage.shared.sourceExists(id) {
+						if let onDuplicate {
+							onDuplicate()
+						} else if !silent {
+							UIAlertController.showAlertWithOk(title: .localized("Error"), message: .localized("Repository already added."))
+						}
+					} else {
+						Storage.shared.addSource(url, repository: repository, id: id) { _ in
+							competion()
+						}
 					}
-				} else {
-					DispatchQueue.main.async {
-						UIAlertController.showAlertWithOk(title: "Error", message: "Repository already added.")
+				case .notModified:
+					// Not asked for (the request is not conditional).
+					break
+				case .failed(let error):
+					if !silent {
+						UIAlertController.showAlertWithOk(title: .localized("Error"), message: error.localizedDescription)
 					}
-				}
-			case .failure(let error):
-				DispatchQueue.main.async {
-					UIAlertController.showAlertWithOk(title: "Error", message: error.localizedDescription)
 				}
 			}
 		}

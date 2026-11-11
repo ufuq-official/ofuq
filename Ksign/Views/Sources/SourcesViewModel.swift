@@ -4,9 +4,13 @@
 //
 //  Created by samara on 30.04.2025.
 //
-//  Ofuq: sources are cached on disk, so the store opens instantly and keeps working offline.
-//  On refresh the list is never emptied out — each source is updated in place as it returns, and a
-//  source whose network refresh fails keeps its last cached copy instead of disappearing.
+//  Ofuq: the sources open from the cache first (see SourceCache), so the store fills in right away,
+//  even offline. The network is only asked for sources that are not cached yet or whose copy is older
+//  than `freshness`; pulling to refresh asks for all of them, and unchanged sources answer "not modified".
+//
+//  Every source is shown as soon as it is ready instead of waiting for the slowest one, a failed refresh
+//  keeps the cached copy on screen, and loads never overlap: a request made while one runs is queued
+//  and runs right after, so a source added meanwhile is never left out.
 //
 
 import Foundation
@@ -19,128 +23,183 @@ final class SourcesViewModel: ObservableObject {
 
 	typealias RepositoryDataHandler = Result<ASRepository, Error>
 
-	var isFinished = true
+	/// False while sources are loading.
+	@Published private(set) var isFinished = true
 	@Published var sources: [AltSource: ASRepository] = [:]
 
-	// MARK: Disk cache
+	/// When the app opens, a source checked with its server less than this long ago is only read from the cache.
+	static let freshness: TimeInterval = 30 * 60
+	/// Sources downloaded at the same time.
+	private static let _maxDownloads = 6
+	/// Cached sources decoded at the same time (a big source takes a lot of memory while it decodes).
+	private static let _maxCacheReads = 3
 
-	/// Where each source's last good JSON is kept (instant open + offline).
-	private static var _cacheDir: URL {
-		let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-			.appendingPathComponent("OfuqSourceCache", isDirectory: true)
-		try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-		return dir
+	private struct Request {
+		var list: [AltSource]
+		var refresh: Bool
 	}
 
-	private static func _cacheURL(forKey key: String) -> URL {
-		let safe = key.replacingOccurrences(of: "[^A-Za-z0-9.-]", with: "_", options: .regularExpression)
-		return _cacheDir.appendingPathComponent(String(safe.prefix(120)) + ".json")
+	private struct Item {
+		let source: AltSource
+		let url: URL
+		let legacyKey: String?
 	}
+
+	private struct Job {
+		let item: Item
+		let conditional: Bool
+	}
+
+	// Only touched on the main queue.
+	private var _isRunning = false
+	private var _pending: Request?
+	private var _waiters: [CheckedContinuation<Void, Never>] = []
 
 	// MARK: Fetch
 
-	func fetchSources(_ sources: FetchedResults<AltSource>, refresh: Bool = false, batchSize: Int = 4) async {
-		guard isFinished else { return }
+	/// Loads `sources` (the cache first, then the network when needed) and returns once they are done.
+	func fetchSources(_ sources: FetchedResults<AltSource>, refresh: Bool = false, batchSize: Int = 6) async {
+		let list: [AltSource] = await MainActor.run { Array(sources) }
+		await fetch(list, refresh: refresh)
+	}
 
-		// check if sources to be fetched are the same as before, if yes, return
-		// also skip check if refresh is true
-		if !refresh, sources.allSatisfy({ self.sources[$0] != nil }) { return }
+	func fetch(_ list: [AltSource], refresh: Bool = false) async {
+		await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+			DispatchQueue.main.async {
+				self._enqueue(Request(list: list, refresh: refresh), continuation: continuation)
+			}
+		}
+	}
 
-		// isFinished is used to prevent multiple fetches at the same time
+	/// Main queue only.
+	private func _enqueue(_ request: Request, continuation: CheckedContinuation<Void, Never>) {
+		if _isRunning {
+			// Runs right after the current load, with the newest list.
+			_pending = Request(list: request.list, refresh: request.refresh || (_pending?.refresh ?? false))
+			_waiters.append(continuation)
+			return
+		}
+
+		// Nothing to do: every source is on screen and no refresh was asked for.
+		if !request.refresh, request.list.allSatisfy({ sources[$0] != nil }) {
+			continuation.resume()
+			return
+		}
+
+		_isRunning = true
 		isFinished = false
-		defer { isFinished = true }
+		_waiters.append(continuation)
 
-		// Managed objects aren't safe off their queue, so read what we need on the main actor up front.
-		let items: [(source: AltSource, url: URL, cacheKey: String)] = await MainActor.run {
-			Array(sources).compactMap { src in
-				guard let url = src.sourceURL else { return nil }
-				let key = src.identifier ?? url.absoluteString
-				return (src, url, key)
-			}
+		// Detached on purpose: SwiftUI cancels a view's task when the source list changes, and that
+		// must never cancel downloads that are already running.
+		Task.detached(priority: .userInitiated) {
+			await self._loop(request)
 		}
+	}
 
-		// Drop sources the user removed, but keep the rest visible (no blanking on refresh).
-		await MainActor.run {
-			let current = Set(items.map { $0.source })
-			self.sources = self.sources.filter { current.contains($0.key) }
-		}
+	private func _loop(_ first: Request) async {
+		var next: Request? = first
 
-		// 1) Show cached copies right away.
-		await _loadFromCache(items)
+		while let request = next {
+			await _run(request)
 
-		// 2) Refresh from the network in batches, updating each source as it returns.
-		for startIndex in stride(from: 0, to: items.count, by: batchSize) {
-			let endIndex = min(startIndex + batchSize, items.count)
-			let batch = items[startIndex..<endIndex]
-
-			let batchResults = await withTaskGroup(of: (AltSource, ASRepository?).self, returning: [AltSource: ASRepository].self) { group in
-				for item in batch {
-					group.addTask {
-						let repo = await Self._fetchAndCache(url: item.url, cacheKey: item.cacheKey)
-						return (item.source, repo)
-					}
+			next = await MainActor.run { () -> Request? in
+				if let pending = self._pending {
+					self._pending = nil
+					return pending
 				}
 
-				var results = [AltSource: ASRepository]()
-				for await (source, repo) in group {
-					if let repo {
-						results[source] = repo
-					}
-				}
-				return results
-			}
-
-			await MainActor.run {
-				// A failed refresh keeps the cached copy already in `sources`.
-				for (source, repo) in batchResults {
-					self.sources[source] = repo
-				}
+				self._isRunning = false
+				self.isFinished = true
+				let waiters = self._waiters
+				self._waiters.removeAll()
+				waiters.forEach { $0.resume() }
+				return nil
 			}
 		}
 	}
 
-	/// Loads any not-yet-shown source from its cached JSON, decoded off the main thread.
-	private func _loadFromCache(_ items: [(source: AltSource, url: URL, cacheKey: String)]) async {
-		let decoded: [(AltSource, ASRepository)] = await withCheckedContinuation { continuation in
-			DispatchQueue.global(qos: .userInitiated).async {
-				var out: [(AltSource, ASRepository)] = []
-				for item in items {
-					let url = Self._cacheURL(forKey: item.cacheKey)
-					guard
-						let data = try? Data(contentsOf: url),
-						let repo = try? JSONDecoder().decode(ASRepository.self, from: data)
-					else {
-						continue
-					}
-					out.append((item.source, repo))
-				}
-				continuation.resume(returning: out)
-			}
-		}
-
-		guard !decoded.isEmpty else { return }
-		await MainActor.run {
-			for (source, repo) in decoded where self.sources[source] == nil {
-				self.sources[source] = repo
-			}
-		}
-	}
-
-	/// Downloads a source, writes its JSON to the cache, and returns the decoded repository.
-	private static func _fetchAndCache(url: URL, cacheKey: String) async -> ASRepository? {
-		await withCheckedContinuation { continuation in
-			let task = URLSession.shared.dataTask(with: url) { data, _, _ in
+	private func _run(_ request: Request) async {
+		// Managed objects are only read on the main queue.
+		let items: [Item] = await MainActor.run {
+			request.list.compactMap { source in
 				guard
-					let data,
-					let repo = try? JSONDecoder().decode(ASRepository.self, from: data)
+					!source.isDeleted,
+					source.managedObjectContext != nil,
+					let url = source.sourceURL
 				else {
-					continuation.resume(returning: nil)
-					return
+					return nil
 				}
-				try? data.write(to: _cacheURL(forKey: cacheKey), options: .atomic)
-				continuation.resume(returning: repo)
+				return Item(source: source, url: url, legacyKey: source.identifier)
 			}
-			task.resume()
+		}
+
+		// Removed sources disappear; the others stay on screen while they refresh.
+		let notShown: [Item] = await MainActor.run {
+			let current = Set(items.map(\.source))
+			let kept = self.sources.filter { current.contains($0.key) }
+			if kept.count != self.sources.count {
+				self.sources = kept
+			}
+			return items.filter { self.sources[$0.source] == nil }
+		}
+
+		// 1. The cache, each source shown as soon as it is read.
+		await Self._forEach(notShown, maxConcurrent: Self._maxCacheReads) { item in
+			guard let repository = SourceCache.load(url: item.url, legacyKey: item.legacyKey) else { return }
+			await MainActor.run {
+				if self.sources[item.source] == nil {
+					self.sources[item.source] = repository
+				}
+			}
+		}
+
+		// 2. The network: sources still missing, or whose copy is old (all of them on a refresh).
+		let shown: Set<AltSource> = await MainActor.run { Set(self.sources.keys) }
+		let jobs: [Job] = items.compactMap { item in
+			let isShown = shown.contains(item.source)
+			if !request.refresh, isShown, SourceCache.isFresh(url: item.url, maxAge: Self.freshness) {
+				return nil
+			}
+			// Ask "has it changed?" only when a copy is on screen to fall back on.
+			return Job(item: item, conditional: isShown)
+		}
+
+		await Self._forEach(jobs, maxConcurrent: Self._maxDownloads) { job in
+			let result = await SourceCache.fetch(url: job.item.url, conditional: job.conditional)
+			guard case .updated(let repository) = result else {
+				// Not modified, or failed: whatever is on screen (the cached copy) stays.
+				return
+			}
+			await MainActor.run {
+				// The source may have been removed while it downloaded.
+				guard !job.item.source.isDeleted, job.item.source.managedObjectContext != nil else { return }
+				self.sources[job.item.source] = repository
+			}
+		}
+	}
+
+	/// Runs `body` for every element, at most `maxConcurrent` at a time.
+	private static func _forEach<T>(
+		_ elements: [T],
+		maxConcurrent: Int,
+		_ body: @escaping (T) async -> Void
+	) async {
+		guard !elements.isEmpty else { return }
+
+		await withTaskGroup(of: Void.self) { group in
+			var iterator = elements.makeIterator()
+
+			for _ in 0..<max(1, maxConcurrent) {
+				guard let element = iterator.next() else { break }
+				group.addTask { await body(element) }
+			}
+
+			while await group.next() != nil {
+				if let element = iterator.next() {
+					group.addTask { await body(element) }
+				}
+			}
 		}
 	}
 }

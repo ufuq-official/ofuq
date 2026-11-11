@@ -21,14 +21,38 @@ struct StoreApp: Identifiable, Hashable {
 	/// Every category the app belongs to, the main one first.
 	let categories: [StoreCategory]
 	var isFeatured: Bool
+	/// Name, developer, subtitle, identifier, source and categories, folded for searching
+	/// (no case, no accents or Arabic diacritics). Built once, off the main thread.
+	let searchKey: String
 
-	init(source: ASRepository, app: ASRepository.App, isFeatured: Bool) {
+	init(
+		source: ASRepository,
+		app: ASRepository.App,
+		isFeatured: Bool,
+		classification: (isGame: Bool, categories: [StoreCategory])? = nil
+	) {
 		self.source = source
 		self.app = app
 		self.isFeatured = isFeatured
-		let classification = StoreCategory.classify(app)
+		let classification = classification ?? StoreCategory.classify(app)
 		self.isGame = classification.isGame
 		self.categories = classification.categories
+
+		var parts: [String] = [app.currentName]
+		for field in [app.developer, app.subtitle, app.id, source.name] {
+			if let field, !field.isEmpty {
+				parts.append(field)
+			}
+		}
+		for category in classification.categories {
+			parts.append(category.title)
+		}
+		self.searchKey = Self.fold(parts.joined(separator: "\u{1}"))
+	}
+
+	/// Lowercased, without accents or Arabic diacritics: how both the query and `searchKey` are compared.
+	static func fold(_ text: String) -> String {
+		text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
 	}
 
 	var id: String { app.currentUniqueId }
@@ -88,17 +112,12 @@ struct StoreApp: Identifiable, Hashable {
 		if query.isEmpty {
 			return true
 		}
-		// One field at a time: a single long `||`/`??` chain is slow for the compiler to check.
-		let fields: [String?] = [name, app.developer, app.subtitle, app.id, source.name]
-		for field in fields {
-			if let field, field.localizedCaseInsensitiveContains(query) {
-				return true
-			}
-		}
-		for category in categories where category.title.localizedCaseInsensitiveContains(query) {
-			return true
-		}
-		return false
+		return matches(folded: Self.fold(query))
+	}
+
+	/// `query` already passed through `fold`: lets a search over thousands of apps fold it only once.
+	func matches(folded query: String) -> Bool {
+		query.isEmpty || searchKey.contains(query)
 	}
 
 	static func == (lhs: StoreApp, rhs: StoreApp) -> Bool {
@@ -547,20 +566,30 @@ final class StoreCatalog: ObservableObject {
 	private(set) var sourceNames: [String] = []
 	/// At least one source gives download counts, so "Most Downloaded" can be shown truthfully.
 	private(set) var hasDownloadCounts = false
+	/// Built with the rest of the catalog, so screens never filter thousands of apps while drawing.
+	private(set) var topApps: [StoreApp] = []
+	private(set) var topGames: [StoreApp] = []
+	private(set) var byCategory: [StoreCategory: [StoreApp]] = [:]
 
-	private var _isRefreshing = false
 	private var _cancellable: AnyCancellable?
 	/// The heavy catalog work (classifying every app of every source) runs here, off the main thread,
 	/// so adding many large sources no longer freezes the interface.
 	private let _rebuildQueue = DispatchQueue(label: "ofuq.storeCatalog.rebuild", qos: .userInitiated)
+	/// Each rebuild gets a number: a rebuild that a newer one replaced is skipped before it starts,
+	/// and an older result never replaces a newer one on screen.
+	private let _generationLock = NSLock()
+	private var _latestGeneration = 0
+	/// Main queue only.
+	private var _appliedGeneration = 0
+	/// Categories of every app already classified, reused by the next rebuilds (only used on `_rebuildQueue`).
+	private static var _classifications: [String: (isGame: Bool, categories: [StoreCategory])] = [:]
 
 	private init() {
 		_cancellable = SourcesViewModel.shared.$sources
-			// Sources come back in batches; coalesce the burst into a single rebuild instead of one per batch.
-			.debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+			// Sources arrive one after the other; coalesce a burst into a single rebuild.
+			.debounce(for: .milliseconds(400), scheduler: DispatchQueue.main)
 			.sink { [weak self] sources in
-				guard let self, !self._isRefreshing else { return }
-				self._rebuild(from: sources)
+				self?._rebuild(from: sources)
 			}
 	}
 
@@ -590,24 +619,26 @@ final class StoreCatalog: ObservableObject {
 
 	func items(for collection: StoreCollection) -> [StoreApp] {
 		switch collection {
-		case .topApps:                return _top(nonGames)
-		case .topGames:               return _top(games)
+		case .topApps:                return topApps
+		case .topGames:               return topGames
 		case .newest:                 return apps
 		case .suggested:              return suggestions
-		case .category(let category): return apps.filter { $0.belongs(to: category) }
+		case .category(let category): return byCategory[category] ?? []
 		}
 	}
 
 	func count(in category: StoreCategory) -> Int {
-		apps.reduce(0) { $0 + ($1.belongs(to: category) ? 1 : 0) }
+		byCategory[category]?.count ?? 0
 	}
 
 	func search(_ query: String) -> [StoreApp] {
-		apps.filter { $0.matches(query) }
+		let folded = StoreApp.fold(query.trimmingCharacters(in: .whitespacesAndNewlines))
+		guard !folded.isEmpty else { return apps }
+		return apps.filter { $0.matches(folded: folded) }
 	}
 
 	/// By download count when the sources give it, otherwise featured apps first.
-	private func _top(_ list: [StoreApp]) -> [StoreApp] {
+	private static func _top(_ list: [StoreApp], hasDownloadCounts: Bool) -> [StoreApp] {
 		if hasDownloadCounts {
 			return list.enumerated()
 				.sorted { lhs, rhs in
@@ -625,33 +656,50 @@ final class StoreCatalog: ObservableObject {
 
 	// MARK: Loading
 
-	/// Pull to refresh: reloads every source and rebuilds the catalog once, so the lists
-	/// do not empty out while the sources come back one by one.
+	/// Pull to refresh: asks every source whether it changed. The catalog updates by itself as sources
+	/// come back (cached copies stay on screen meanwhile, so the lists never empty out).
 	func refresh(_ sources: FetchedResults<AltSource>) async {
-		await MainActor.run { self._isRefreshing = true }
 		await SourcesViewModel.shared.fetchSources(sources, refresh: true)
-		await MainActor.run {
-			self._isRefreshing = false
-			self._rebuild(from: SourcesViewModel.shared.sources)
-		}
 	}
 
 	private func _rebuild(from sources: [AltSource: ASRepository]) {
 		// `ASRepository` is a value type, so the heavy work can safely leave the main thread.
 		let repositories = Array(sources.values)
+
+		_generationLock.lock()
+		_latestGeneration += 1
+		let generation = _latestGeneration
+		_generationLock.unlock()
+
 		_rebuildQueue.async { [weak self] in
 			guard let self else { return }
+			// A newer rebuild is already waiting: it will include these sources too.
+			guard self._isLatest(generation) else { return }
+
 			let result = Self._computeCatalog(from: repositories)
+
 			DispatchQueue.main.async {
+				guard generation > self._appliedGeneration else { return }
+				self._appliedGeneration = generation
 				self.games = result.games
 				self.nonGames = result.nonGames
 				self.featured = result.featured
 				self.suggestions = result.suggestions
 				self.sourceNames = result.sourceNames
 				self.hasDownloadCounts = result.hasDownloadCounts
+				self.topApps = result.topApps
+				self.topGames = result.topGames
+				self.byCategory = result.byCategory
+				// Last: `apps` is the published value the screens observe.
 				self.apps = result.apps
 			}
 		}
+	}
+
+	private func _isLatest(_ generation: Int) -> Bool {
+		_generationLock.lock()
+		defer { _generationLock.unlock() }
+		return generation == _latestGeneration
 	}
 
 	/// The computed catalog, built off the main thread and then applied on it in one step.
@@ -663,6 +711,25 @@ final class StoreCatalog: ObservableObject {
 		var suggestions: [StoreApp] = []
 		var sourceNames: [String] = []
 		var hasDownloadCounts = false
+		var topApps: [StoreApp] = []
+		var topGames: [StoreApp] = []
+		var byCategory: [StoreCategory: [StoreApp]] = [:]
+	}
+
+	/// What the classification of an app depends on.
+	private static func _classificationKey(for app: ASRepository.App) -> String {
+		[app.id ?? "", app.name ?? "", app.subtitle ?? "", app.category ?? ""].joined(separator: "\u{1}")
+	}
+
+	/// Only called on `_rebuildQueue`.
+	private static func _classification(for app: ASRepository.App) -> (isGame: Bool, categories: [StoreCategory]) {
+		let key = _classificationKey(for: app)
+		if let known = _classifications[key] {
+			return known
+		}
+		let classification = StoreCategory.classify(app)
+		_classifications[key] = classification
+		return classification
 	}
 
 	private static func _computeCatalog(from repositories: [ASRepository]) -> _Catalog {
@@ -677,7 +744,12 @@ final class StoreCatalog: ObservableObject {
 
 			for app in repository.apps where app.currentDownloadUrl != nil {
 				let isFeatured = app.id.map { featuredIDs.contains($0) } ?? false
-				let item = StoreApp(source: repository, app: app, isFeatured: isFeatured)
+				let item = StoreApp(
+					source: repository,
+					app: app,
+					isFeatured: isFeatured,
+					classification: _classification(for: app)
+				)
 				// The same app can be listed by several sources: keep its newest release.
 				let key = app.id ?? item.id
 				if let existing = byKey[key] {
@@ -707,6 +779,16 @@ final class StoreCatalog: ObservableObject {
 		catalog.suggestions = Array(sorted.shuffled().prefix(15))
 		catalog.sourceNames = names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
 		catalog.hasDownloadCounts = sorted.contains { $0.downloads != nil }
+		catalog.topApps = _top(catalog.nonGames, hasDownloadCounts: catalog.hasDownloadCounts)
+		catalog.topGames = _top(catalog.games, hasDownloadCounts: catalog.hasDownloadCounts)
+
+		var byCategory: [StoreCategory: [StoreApp]] = [:]
+		for item in sorted {
+			for category in item.categories {
+				byCategory[category, default: []].append(item)
+			}
+		}
+		catalog.byCategory = byCategory
 		catalog.apps = sorted
 		return catalog
 	}

@@ -46,6 +46,38 @@ enum CertificateCheck {
 		return identifier
 	}
 
+	/// False when the certificate's provisioning profile cannot sign an app with this bundle ID:
+	/// an explicit profile ("TEAMID.com.example.app") allows only that ID, a partial wildcard
+	/// ("TEAMID.com.example.*") only IDs that start with it. True for "TEAMID.*" or an unreadable profile.
+	static func allows(_ bundleID: String, for certificate: CertificatePair) -> Bool {
+		pattern(appIDPattern(for: certificate), allows: bundleID)
+	}
+
+	/// The app ID of the certificate's provisioning profile without the team prefix ("*", "com.example.*",
+	/// "com.example.app"), or nil when the profile cannot be read. Reads the profile file: keep the result
+	/// instead of asking again for every bundle ID.
+	static func appIDPattern(for certificate: CertificatePair) -> String? {
+		guard
+			let decoded = Storage.shared.getProvisionFileDecoded(for: certificate),
+			let entitlements = decoded.Entitlements,
+			let appID = entitlements["application-identifier"]?.value as? String
+		else {
+			return nil
+		}
+		return appID.split(separator: ".").dropFirst().joined(separator: ".")
+	}
+
+	/// See `allows(_:for:)`. A nil or empty pattern (unreadable profile) allows everything.
+	static func pattern(_ pattern: String?, allows bundleID: String) -> Bool {
+		guard let pattern, !pattern.isEmpty, pattern != "*" else {
+			return true
+		}
+		if pattern.hasSuffix("*") {
+			return bundleID.hasPrefix(String(pattern.dropLast()))
+		}
+		return bundleID == pattern
+	}
+
 	/// Runs `proceed` right away when the certificate looks fine (or when no certificate is used).
 	/// Otherwise explains the problem and runs `proceed` only if the user taps "Continue Anyway".
 	/// Must be called on the main queue.

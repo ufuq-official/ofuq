@@ -164,20 +164,23 @@ final class SigningHandler: NSObject {
 			return
 		}
 		
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            let bundle = Bundle(url: appUrl)
+		let bundle = Bundle(url: appUrl)
+		let uuid = _uuid
+		let certificate = _options.doAdhocSigning ? nil : appCertificate
 
-            Storage.shared.addSigned(
-                uuid: _uuid,
-                certificate: _options.doAdhocSigning ? nil : appCertificate,
-                appName: bundle?.name,
-                appIdentifier: bundle?.bundleIdentifier,
-                appVersion: bundle?.version,
-                appIcon: bundle?.iconFileName
-            ) { _ in
-                Logger.signing.info("[\(self._uuid)] Added to database")
-                continuation.resume()
-            }
+		// Ofuq: the database (and the haptic feedback in `addSigned`) belong to the main queue. Saving from
+		// this background task could leave the signed app missing from the Library.
+		await MainActor.run {
+			Storage.shared.addSigned(
+				uuid: uuid,
+				certificate: certificate,
+				appName: bundle?.name,
+				appIdentifier: bundle?.bundleIdentifier,
+				appVersion: bundle?.version,
+				appIcon: bundle?.iconFileName
+			) { _ in
+				Logger.signing.info("[\(uuid)] Added to database")
+			}
 		}
 	}
 	

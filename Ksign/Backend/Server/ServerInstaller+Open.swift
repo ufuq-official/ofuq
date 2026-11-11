@@ -41,10 +41,28 @@ extension ServerInstaller {
 			return
 		}
 
-		// Give the local server a moment to answer before firing the link. Best effort: a server that is
-		// up but refuses the probe is not blocked, because `isServerUp` already ruled out a dead server.
-		verifyLocalServerReady { [weak self] ready in
+		// Give the local server a moment to answer before firing the link. For Fully Local this also checks what
+		// iOS will need: that local.backloop.dev leads back to this iPhone and that its HTTPS certificate is accepted.
+		verifyLocalServerReady(
+			timeout: isSemiLocal ? 2.0 : 5.0,
+			requestTimeout: isSemiLocal ? 0.6 : 2.5
+		) { [weak self] ready in
 			guard let self else { return }
+
+			if !ready && !isSemiLocal {
+				// iOS would fail the same way: install through Semi Local instead of failing silently.
+				DispatchQueue.main.async {
+					if self.fallBackToSemiLocal() {
+						self.openInstallPrompt(showSafariPage: showSafariPage)
+					} else {
+						let error = self.startError ?? ServerInstallerError.serverFailedToStart
+						self.viewModel.status = .broken(error)
+						UIAlertController.showAlertWithOk(title: .localized("Install"), message: error.localizedDescription)
+					}
+				}
+				return
+			}
+
 			if !ready {
 				Logger.misc.warning("Local server did not confirm readiness; opening the install link anyway")
 			}
@@ -111,12 +129,17 @@ extension ServerInstaller {
 	/// Best-effort readiness check: pings the local `/install` route until it answers or the timeout passes.
 	/// Any HTTP response (even 404) means the server is alive. Never blocks a server that is actually up —
 	/// on timeout it still calls back so the caller proceeds.
-	func verifyLocalServerReady(timeout: TimeInterval = 2.0, completion: @escaping (Bool) -> Void) {
+	func verifyLocalServerReady(
+		timeout: TimeInterval = 2.0,
+		requestTimeout: TimeInterval = 0.6,
+		completion: @escaping (Bool) -> Void
+	) {
 		let probeURL = pageEndpoint
 		let deadline = Date().addingTimeInterval(timeout)
 
 		let config = URLSessionConfiguration.ephemeral
-		config.timeoutIntervalForRequest = 0.6
+		// Fully Local needs room for a DNS lookup of local.backloop.dev and a TLS handshake.
+		config.timeoutIntervalForRequest = requestTimeout
 		config.waitsForConnectivity = false
 		config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
 		let session = URLSession(configuration: config)

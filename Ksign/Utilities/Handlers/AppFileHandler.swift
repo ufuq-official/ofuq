@@ -145,15 +145,19 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 		}
 		
 		let bundle = Bundle(url: appUrl)
-		
-		Storage.shared.addImported(
-			uuid: _uuid,
-			appName: bundle?.name,
-			appIdentifier: bundle?.bundleIdentifier,
-			appVersion: bundle?.version,
-			appIcon: bundle?.iconFileName
-		) { _ in
-			print("[\(self._uuid)] Added to database")
+		let uuid = _uuid
+
+		// Ofuq: the database belongs to the main queue (this runs in a background task).
+		await MainActor.run {
+			Storage.shared.addImported(
+				uuid: uuid,
+				appName: bundle?.name,
+				appIdentifier: bundle?.bundleIdentifier,
+				appVersion: bundle?.version,
+				appIcon: bundle?.iconFileName
+			) { _ in
+				print("[\(uuid)] Added to database")
+			}
 		}
 	}
 	

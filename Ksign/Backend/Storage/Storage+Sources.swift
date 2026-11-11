@@ -117,8 +117,9 @@ extension Storage {
 			"https://ipa.kenhtao.net/kenhtao.json"             // مستودع مميز لتطبيقات الألسن والبلس
 		]
 		
+		// Silent: a source that is down on first launch must not greet the user with an error alert.
 		for urlString in builtInSourceURLs {
-			FR.handleSource(urlString) { }
+			FR.handleSource(urlString, silent: true) { }
 		}
 	}
 

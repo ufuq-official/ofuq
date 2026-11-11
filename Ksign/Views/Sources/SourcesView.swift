@@ -93,6 +93,8 @@ struct SourcesView: View {
 					.presentationDetents([.medium])
 			}
 			.refreshable {
+				// Picks up sources added or removed on GitHub, too.
+				RemoteSources.sync()
 				await viewModel.fetchSources(_sources, refresh: true)
 			}
 		}

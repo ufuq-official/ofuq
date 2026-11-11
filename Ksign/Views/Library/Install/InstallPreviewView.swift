@@ -28,10 +28,13 @@ struct InstallPreviewView: View {
 	@StateObject var viewModel: InstallerStatusViewModel
 	@StateObject var installer: ServerInstaller
 	@State var isSharing: Bool
+	/// Closes the sheet by itself once the app is installed (Clone: the next copy's sheet follows).
+	let closesWhenInstalled: Bool
 
-	init(app: AppInfoPresentable, isSharing: Bool = false) {
+	init(app: AppInfoPresentable, isSharing: Bool = false, closesWhenInstalled: Bool = false) {
 		self.app = app
 		self.isSharing = isSharing
+		self.closesWhenInstalled = closesWhenInstalled
         let method = UserDefaults.standard.integer(forKey: "Feather.installationMethod")
 		let viewModel = InstallerStatusViewModel(isIdevice: method == 1)
 		self._viewModel = StateObject(wrappedValue: viewModel)
@@ -86,6 +89,12 @@ struct InstallPreviewView: View {
             default:
                 break
             }
+
+			if closesWhenInstalled, case .completed = newStatus {
+				DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+					dismiss()
+				}
+			}
 		}
 		.onAppear(perform: _install)
 		.onAppear {

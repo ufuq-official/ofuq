@@ -15396,6 +15396,635 @@
           }
         }
       }
+    },
+    "The source answered with error %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ردّ المصدر بالخطأ %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The source answered with error %@."
+          }
+        }
+      }
+    },
+    "This is not a valid source. A source is an AltStore / ESign JSON file with a list of apps." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هذا ليس مصدرًا صالحًا. المصدر ملف JSON بصيغة AltStore / ESign يحتوي على قائمة تطبيقات."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is not a valid source. A source is an AltStore / ESign JSON file with a list of apps."
+          }
+        }
+      }
+    },
+    "The source file could not be read." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذّرت قراءة ملف المصدر."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The source file could not be read."
+          }
+        }
+      }
+    },
+    "This link is not valid." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هذا الرابط غير صالح."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This link is not valid."
+          }
+        }
+      }
+    },
+    "Repository already added." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هذا المصدر مضاف مسبقًا."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repository already added."
+          }
+        }
+      }
+    },
+    "Import from Clipboard" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استيراد من الحافظة"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from Clipboard"
+          }
+        }
+      }
+    },
+    "Import a JSON File" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استيراد ملف JSON"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import a JSON File"
+          }
+        }
+      }
+    },
+    "All sources copied to clipboard." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم نسخ جميع المصادر إلى الحافظة."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All sources copied to clipboard."
+          }
+        }
+      }
+    },
+    "Import source links, KravaSign/MapleSign and ESign codes, or an AltStore / ESign source file (.json)." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استورد روابط المصادر، أو أكواد KravaSign/MapleSign وESign، أو ملف مصدر AltStore / ESign بصيغة JSON."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import source links, KravaSign/MapleSign and ESign codes, or an AltStore / ESign source file (.json)."
+          }
+        }
+      }
+    },
+    "The clipboard is empty. Copy source links or an ESign code first, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الحافظة فارغة. انسخ روابط المصادر أو كود ESign أولًا، ثم حاول مرة أخرى."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The clipboard is empty. Copy source links or an ESign code first, then try again."
+          }
+        }
+      }
+    },
+    "No source links were found. Copy source links (one per line) or an ESign code, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم يتم العثور على روابط مصادر. انسخ روابط المصادر (رابط في كل سطر) أو كود ESign، ثم حاول مرة أخرى."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No source links were found. Copy source links (one per line) or an ESign code, then try again."
+          }
+        }
+      }
+    },
+    "None of these sources could be loaded. Check the links and your connection, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذّر تحميل أي من هذه المصادر. تحقق من الروابط ومن اتصالك بالإنترنت، ثم حاول مرة أخرى."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None of these sources could be loaded. Check the links and your connection, then try again."
+          }
+        }
+      }
+    },
+    "%@ sources were added. %@ could not be loaded." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمت إضافة %@ مصدر. تعذّر تحميل %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ sources were added. %@ could not be loaded."
+          }
+        }
+      }
+    },
+    "No Repositories" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا توجد مصادر"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Repositories"
+          }
+        }
+      }
+    },
+    "Get started by adding your first repository." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ابدأ بإضافة أول مصدر لك."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get started by adding your first repository."
+          }
+        }
+      }
+    },
+    "Ofuq could not read this file. Save it to the Files app first, then open it with Ofuq again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذّر على أفق قراءة هذا الملف. احفظه في تطبيق الملفات أولًا، ثم افتحه بأفق مرة أخرى."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ofuq could not read this file. Save it to the Files app first, then open it with Ofuq again."
+          }
+        }
+      }
+    },
+    "The app was added to your Library. Import a certificate in Settings > Certificates to sign and install it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمت إضافة التطبيق إلى المكتبة. استورد شهادة من الإعدادات > الشهادات لتوقيعه وتثبيته."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The app was added to your Library. Import a certificate in Settings > Certificates to sign and install it."
+          }
+        }
+      }
+    },
+    "Clone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استنساخ"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clone"
+          }
+        }
+      }
+    },
+    "Each copy is a separate app on your iPhone, with its own name, icon on the Home Screen and data." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "كل نسخة تطبيق مستقل على الآيفون، له اسمه وأيقونته على الشاشة الرئيسية وبياناته الخاصة."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each copy is a separate app on your iPhone, with its own name, icon on the Home Screen and data."
+          }
+        }
+      }
+    },
+    "Number of Copies" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "عدد النسخ"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number of Copies"
+          }
+        }
+      }
+    },
+    "A number is added after the name of each copy." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُضاف رقم بعد اسم كل نسخة."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A number is added after the name of each copy."
+          }
+        }
+      }
+    },
+    "Bundle ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "معرّف الحزمة (Bundle ID)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bundle ID"
+          }
+        }
+      }
+    },
+    "Each copy needs its own bundle ID, so a number is added at the end. Only letters, numbers, dots and hyphens are kept." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تحتاج كل نسخة إلى معرّف حزمة خاص بها، لذلك يُضاف رقم في نهايته. تُحفظ الحروف الإنجليزية والأرقام والنقاط والشرطات فقط."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each copy needs its own bundle ID, so a number is added at the end. Only letters, numbers, dots and hyphens are kept."
+          }
+        }
+      }
+    },
+    "Copies" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "النسخ"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copies"
+          }
+        }
+      }
+    },
+    "Install After Signing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "التثبيت بعد التوقيع"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install After Signing"
+          }
+        }
+      }
+    },
+    "The copies are signed with the certificate selected in Settings, then installed one after another. Signed copies also appear in Library > Signed Apps." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تُوقَّع النسخ بالشهادة المحددة في الإعدادات، ثم تُثبَّت واحدة بعد الأخرى. تظهر النسخ الموقعة أيضًا في المكتبة > التطبيقات الموقعة."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The copies are signed with the certificate selected in Settings, then installed one after another. Signed copies also appear in Library > Signed Apps."
+          }
+        }
+      }
+    },
+    "Signing copy %@ of %@…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جارٍ توقيع النسخة %@ من %@…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signing copy %@ of %@…"
+          }
+        }
+      }
+    },
+    "No certificate is selected. Import a certificate in Settings > Certificates to sign the copies." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم يتم تحديد شهادة. استورد شهادة من الإعدادات > الشهادات لتوقيع النسخ."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No certificate is selected. Import a certificate in Settings > Certificates to sign the copies."
+          }
+        }
+      }
+    },
+    "This certificate only allows one app (%@), so it cannot sign copies with other bundle IDs. Use a certificate with a wildcard (*) profile." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هذه الشهادة تسمح بتطبيق واحد فقط (%@)، لذلك لا يمكنها توقيع نسخ بمعرّفات حزم أخرى. استخدم شهادة بملف تعريف عام (*)."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This certificate only allows one app (%@), so it cannot sign copies with other bundle IDs. Use a certificate with a wildcard (*) profile."
+          }
+        }
+      }
+    },
+    "Enter a bundle ID." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أدخل معرّف الحزمة."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a bundle ID."
+          }
+        }
+      }
+    },
+    "This certificate does not allow the bundle ID %@. Change the bundle ID." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هذه الشهادة لا تسمح بمعرّف الحزمة %@. غيّر معرّف الحزمة."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This certificate does not allow the bundle ID %@. Change the bundle ID."
+          }
+        }
+      }
+    },
+    "None of the copies could be signed.\n\n%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذّر توقيع أي نسخة.\n\n%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None of the copies could be signed.\n\n%@"
+          }
+        }
+      }
+    },
+    "%@ of %@ copies were signed. These could not be signed:\n\n%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم توقيع %@ من أصل %@ نسخ. تعذّر توقيع هذه النسخ:\n\n%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ of %@ copies were signed. These could not be signed:\n\n%@"
+          }
+        }
+      }
+    },
+    "%@ copies were signed. You can find them in Library > Signed Apps." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم توقيع %@ نسخ. تجدها في المكتبة > التطبيقات الموقعة."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ copies were signed. You can find them in Library > Signed Apps."
+          }
+        }
+      }
+    },
+    "It was not signed with the certificate." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم تُوقَّع بالشهادة."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It was not signed with the certificate."
+          }
+        }
+      }
+    },
+    "The signed copy was not found." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم يتم العثور على النسخة الموقعة."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The signed copy was not found."
+          }
+        }
+      }
+    },
+    "Ksign certificate file (.ksign) is now unsupported from v1.5.1, please refer to use .p12 and .mobileprovision instead." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ملفات شهادات Ksign بصيغة ksign لم تعد مدعومة منذ الإصدار 1.5.1، استخدم ملفي p12 وmobileprovision بدلًا منها."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ksign certificate file (.ksign) is now unsupported from v1.5.1, please refer to use .p12 and .mobileprovision instead."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

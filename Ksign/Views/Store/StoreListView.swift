@@ -78,13 +78,16 @@ struct StoreListView: View {
 	private var _items: [StoreApp] {
 		var items = _baseItems
 		if let category = _category {
-			items = items.filter { $0.belongs(to: category) }
+			// Precomputed with the catalog; a game's categories are only game genres, so this list
+			// already belongs to the right tab.
+			items = (_catalog.byCategory[category] ?? []).filter { $0.isGame == (kind == .games) }
 		}
 		if let sourceName = _sourceName {
 			items = items.filter { $0.source.name == sourceName }
 		}
-		if !_query.isEmpty {
-			items = items.filter { $0.matches(_query) }
+		let query = StoreApp.fold(_query.trimmingCharacters(in: .whitespacesAndNewlines))
+		if !query.isEmpty {
+			items = items.filter { $0.matches(folded: query) }
 		}
 		switch _sort {
 		case .newest:

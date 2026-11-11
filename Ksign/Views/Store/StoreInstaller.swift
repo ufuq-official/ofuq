@@ -36,6 +36,9 @@ final class StoreInstaller: ObservableObject {
 	@Published private(set) var phases: [String: Phase] = [:]
 	/// The signed app waiting for its install sheet.
 	@Published var installTarget: AnyApp?
+	/// Signed apps (UUIDs) that get the install sheet one after another, after the current one closes.
+	/// Used for the copies made by Clone: iOS shows one install prompt at a time.
+	private(set) var installQueue: [String] = []
 
 	private struct Pending {
 		let bundleID: String?
@@ -136,6 +139,102 @@ final class StoreInstaller: ObservableObject {
 		_ = DownloadManager.shared.startDownload(from: url, id: app.currentUniqueId)
 	}
 
+	/// An .ipa opened with Ofuq from Share, Files, Telegram, AirDrop…: it is imported into the Library with
+	/// its progress shown at the top (like a download), signed with the selected certificate, then the
+	/// install prompt opens — the same steps as Install in the store.
+	/// Without a certificate it is only imported, so it can be signed later.
+	func installFile(_ url: URL) {
+		let id = "OfuqShared_\(UUID().uuidString)"
+
+		guard let certificate = Self.selectedCertificate(), let certificateUUID = certificate.uuid else {
+			_importFile(url, id: id, certificateUUID: nil)
+			return
+		}
+
+		CertificateCheck.confirm(certificate) { [weak self] in
+			self?._importFile(url, id: id, certificateUUID: certificateUUID)
+		}
+	}
+
+	private func _importFile(_ url: URL, id: String, certificateUUID: String?) {
+		if let certificateUUID {
+			_pending[id] = Pending(bundleID: nil, certificateUUID: certificateUUID, started: Date())
+		}
+		let download = DownloadManager.shared.startArchive(from: url, id: id)
+		UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+		// The installer lives as long as the app (`shared`), so it is captured strongly.
+		Task.detached(priority: .userInitiated) {
+			let local: URL
+			do {
+				local = try StoreInstaller._readableCopy(of: url)
+			} catch {
+				await MainActor.run {
+					if let index = DownloadManager.shared.getDownloadIndex(by: id) {
+						DownloadManager.shared.downloads.remove(at: index)
+					}
+					self._finish(id)
+					self._alert(
+						title: .localized("Import"),
+						message: .localized("Ofuq could not read this file. Save it to the Files app first, then open it with Ofuq again.")
+					)
+				}
+				return
+			}
+
+			await MainActor.run {
+				DownloadManager.shared.handlePachageFile(url: local, dl: download) { error in
+					StoreInstaller._cleanUp(local, original: url)
+					// With a certificate, the import notifications lead to signing (or to an error message).
+					guard certificateUUID == nil else { return }
+					if let error {
+						UIAlertController.showAlertWithOk(title: .localized("Import"), message: error.localizedDescription)
+					} else {
+						UIAlertController.showAlertWithOk(
+							title: .localized("No Certificate"),
+							message: .localized("The app was added to your Library. Import a certificate in Settings > Certificates to sign and install it.")
+						)
+					}
+				}
+			}
+		}
+	}
+
+	/// Files iOS copied into Ofuq (Documents/Inbox) are read where they are. Files that live in another app's
+	/// storage (iCloud Drive, a file provider) are only readable while access is open, so they are copied first.
+	private static func _readableCopy(of url: URL) throws -> URL {
+		let container = URL.documentsDirectory.deletingLastPathComponent().resolvingSymlinksInPath().path
+		if url.resolvingSymlinksInPath().path.hasPrefix(container) {
+			return url
+		}
+
+		let isAccessing = url.startAccessingSecurityScopedResource()
+		defer {
+			if isAccessing {
+				url.stopAccessingSecurityScopedResource()
+			}
+		}
+
+		let directory = FileManager.default.temporaryDirectory
+			.appendingPathComponent("OfuqShared_\(UUID().uuidString)", isDirectory: true)
+		try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+		let destination = directory.appendingPathComponent(url.lastPathComponent)
+		try FileManager.default.copyItem(at: url, to: destination)
+		return destination
+	}
+
+	/// Removes the temporary copy, and the copy iOS left in Documents/Inbox (the app is in the Library now).
+	private static func _cleanUp(_ local: URL, original: URL) {
+		let fileManager = FileManager.default
+		if local != original {
+			try? fileManager.removeItem(at: local.deletingLastPathComponent())
+		}
+		let inbox = URL.documentsDirectory.appendingPathComponent("Inbox").resolvingSymlinksInPath().path
+		if original.resolvingSymlinksInPath().path.hasPrefix(inbox) {
+			try? fileManager.removeItem(at: original)
+		}
+	}
+
 	/// The certificate picked in Settings, the same way the signing screen reads it.
 	static func selectedCertificate() -> CertificatePair? {
 		let request = NSFetchRequest<CertificatePair>(entityName: "CertificatePair")
@@ -191,37 +290,60 @@ final class StoreInstaller: ObservableObject {
 			return
 		}
 
+		let finalOptions = Self.installOptions(for: imported, certificate: certificate)
+
+		Self.signForInstall(imported, options: finalOptions, certificate: certificate) { [weak self] result in
+			guard let self else { return }
+			self._finish(id)
+			switch result {
+			case .success(let signedUUID):
+				if finalOptions.removeApp {
+					Storage.shared.deleteApp(for: imported)
+				}
+				self._presentInstall(signedUUID: signedUUID)
+			case .failure(let error):
+				self._alert(title: .localized("Signing"), message: error.localizedDescription)
+			}
+		}
+	}
+
+	/// The saved signing options, with what an install needs forced on, and the same adjustments the signing
+	/// screen makes when it opens (PPQ protection, saved identifiers and names, prefix/suffix).
+	static func installOptions(for app: AppInfoPresentable, certificate: CertificatePair) -> Options {
 		let saved = OptionsManager.shared.options
 		var options = saved
 		// Always a real signature for an install (see `install(_:)`); these two would skip it.
 		options.onlyModify = false
 		options.doAdhocSigning = false
+		// The provisioning profile must be inside the app: it is what lets iOS install and open an app
+		// signed with this certificate. "Remove Provisioning" is on by default in the signing options,
+		// and it left installs without it ("the app was not signed with the certificate").
+		options.removeProvisioning = false
 
-		// The same adjustments the signing screen makes when it opens.
 		if
 			saved.ppqProtection,
-			let identifier = imported.identifier,
+			let identifier = app.identifier,
 			certificate.ppQCheck
 		{
 			options.appIdentifier = "\(identifier).\(saved.ppqString)"
 		}
 
 		if
-			let identifier = imported.identifier,
+			let identifier = app.identifier,
 			let newIdentifier = options.identifiers[identifier]
 		{
 			options.appIdentifier = newIdentifier
 		}
 
 		if
-			let name = imported.name,
+			let name = app.name,
 			let newName = options.displayNames[name]
 		{
 			options.appName = newName
 		}
 
 		if saved.prefix != nil || saved.suffix != nil {
-			var name = imported.name ?? ""
+			var name = app.name ?? ""
 			if let dictionaryName = options.displayNames[name] {
 				name = dictionaryName
 			}
@@ -234,36 +356,34 @@ final class StoreInstaller: ObservableObject {
 			options.appName = name
 		}
 
-		let finalOptions = options
+		return options
+	}
 
-		// Same steps as `FR.signPackageFile`, but with the handler kept here so the exact signed app
-		// (its UUID) is known: the install sheet opens for this app and no other.
-		let handler = SigningHandler(app: imported, options: finalOptions)
+	/// Same steps as `FR.signPackageFile`, but the handler is kept so the exact signed app (its UUID) is known,
+	/// and the signature is checked before anything is reported as signed. `completion` runs on the main queue.
+	static func signForInstall(
+		_ app: AppInfoPresentable,
+		options: Options,
+		certificate: CertificatePair,
+		completion: @escaping (Result<String, Error>) -> Void
+	) {
+		let handler = SigningHandler(app: app, options: options)
 		handler.appCertificate = certificate
 		handler.appIcon = nil
 		let signedUUID = handler.uuid
 
-		Task.detached { [weak self] in
+		Task.detached {
 			do {
 				try await handler.copy()
 				try await handler.modify()
 				try? await handler.clean()
-
 				await MainActor.run {
-					guard let self else { return }
-					self._finish(id)
-					if finalOptions.removeApp {
-						Storage.shared.deleteApp(for: imported)
-					}
-					self._presentInstall(signedUUID: signedUUID)
+					completion(.success(signedUUID))
 				}
 			} catch {
 				try? await handler.clean()
-
 				await MainActor.run {
-					guard let self else { return }
-					self._finish(id)
-					self._alert(title: .localized("Signing"), message: error.localizedDescription)
+					completion(.failure(error))
 				}
 			}
 		}
@@ -283,7 +403,7 @@ final class StoreInstaller: ObservableObject {
 		}
 
 		// Last check before the install link exists: the app must carry the certificate's signature.
-		guard Self._isSignedWithCertificate(signed) else {
+		guard Self.isSignedWithCertificate(signed) else {
 			_alert(
 				title: .localized("Signing"),
 				message: .localized("The app was not signed with the certificate, so it was not sent for installation. Check the certificate in Settings > Certificates and try again.")
@@ -299,11 +419,44 @@ final class StoreInstaller: ObservableObject {
 		phases[id] = nil
 	}
 
+	// MARK: Install queue
+
+	/// True while more signed apps wait for the install sheet after the current one.
+	var hasQueuedInstalls: Bool {
+		!installQueue.isEmpty
+	}
+
+	/// Opens the install sheet for each signed app, one after another. Must be called on the main queue.
+	func queueInstalls(_ signedUUIDs: [String]) {
+		guard !signedUUIDs.isEmpty else { return }
+		installQueue.append(contentsOf: signedUUIDs)
+		if installTarget == nil {
+			_presentNextQueuedInstall()
+		}
+	}
+
+	/// Called when the install sheet closes: the next app in the queue gets its sheet.
+	func installSheetDidClose() {
+		guard hasQueuedInstalls else { return }
+		// Give the closing sheet time to leave the screen; a sheet cannot open while another one closes.
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+			guard let self, self.installTarget == nil else { return }
+			self._presentNextQueuedInstall()
+		}
+	}
+
+	private func _presentNextQueuedInstall() {
+		guard !installQueue.isEmpty else { return }
+		let next = installQueue.removeFirst()
+		_presentInstall(signedUUID: next)
+	}
+
 	// MARK: Signature check
 
 	/// True when the signed app is linked to a certificate and zsign left its signature in the bundle:
 	/// the embedded provisioning profile and the code signature of the main app.
-	private static func _isSignedWithCertificate(_ signed: Signed) -> Bool {
+	/// (Installs always keep the profile, see `installOptions(for:certificate:)`.)
+	static func isSignedWithCertificate(_ signed: Signed) -> Bool {
 		guard
 			signed.certificate != nil,
 			let appURL = Storage.shared.getAppDirectory(for: signed)

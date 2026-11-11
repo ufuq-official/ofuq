@@ -1,0 +1,46 @@
+name: Update sources list
+
+# Every time a file is added, changed or deleted in the sources/ folder, this rebuilds
+# sources/index.json, the list Ofuq reads when it opens. See sources/README.md.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "sources/**"
+      - ".github/scripts/build_sources_index.py"
+      - ".github/workflows/sources-index.yml"
+
+concurrency:
+  group: sources-index
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  index:
+    name: Build sources/index.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build the list
+        run: python3 .github/scripts/build_sources_index.py
+
+      - name: Save the list
+        run: |
+          if git diff --quiet -- sources/index.json && git ls-files --error-unmatch sources/index.json >/dev/null 2>&1; then
+            echo "The list did not change."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sources/index.json
+          git commit -m "Update sources/index.json"
+          # Someone may have pushed meanwhile.
+          git pull --rebase --autostash
+          git push

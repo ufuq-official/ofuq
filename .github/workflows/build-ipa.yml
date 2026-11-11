@@ -6,6 +6,11 @@ on:
   workflow_dispatch:
   push:
     branches: [ "main" ]
+    # Adding or editing source files does not change the app: no new build for that.
+    paths-ignore:
+      - "sources/**"
+      - ".github/workflows/sources-index.yml"
+      - ".github/scripts/**"
 
 concurrency:
   group: build-ipa-${{ github.ref }}

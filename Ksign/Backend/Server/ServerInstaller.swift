@@ -189,6 +189,27 @@ class ServerInstaller: Identifiable, ObservableObject {
 		_needsShutdown = false
 		server.server.shutdown()
 		server.shutdown()
+		_server = nil
+	}
+
+	/// Restarts this installer's server as Semi Local: plain HTTP on this iPhone, manifest from the HTTPS generator.
+	///
+	/// Fully Local reaches its own HTTPS server through `local.backloop.dev`, a public name that has to point
+	/// back to this iPhone. Some networks, routers and DNS profiles block such names, and iOS then fails the
+	/// install with a connection error and no explanation. Semi Local does not depend on that name.
+	/// Must be called on the main queue. Returns true when the Semi Local server is up.
+	@discardableResult
+	func fallBackToSemiLocal() -> Bool {
+		guard serverMethod != Self.semiLocal else { return startError == nil && port != 0 }
+
+		Logger.misc.warning("Fully Local is not reachable on this network; switching this install to Semi Local")
+		_shutdownServer()
+		serverMethod = Self.semiLocal
+		host = Self.resolveHost(for: Self.semiLocal)
+		port = 0
+		startError = nil
+		_start(tls: nil)
+		return startError == nil && port != 0
 	}
 
     private func _updateStatus(_ newStatus: InstallerStatusViewModel.InstallerStatus) {

@@ -17,6 +17,7 @@ struct LibraryView: View {
 	@State private var _selectedSigningAppPresenting: AnyApp?
 	@State private var _selectedInstallAppPresenting: AnyApp?
 	@State private var _selectedAppDylibsPresenting: AnyApp?
+	@State private var _selectedCloneAppPresenting: AnyApp?
 	@State private var _isBulkSigningPresenting = false
     @State private var _isBulkInstallingPresenting = false
 	@State private var _isImportingPresenting = false
@@ -104,6 +105,7 @@ struct LibraryView: View {
 									selectedSigningAppPresenting: $_selectedSigningAppPresenting,
 									selectedInstallAppPresenting: $_selectedInstallAppPresenting,
 									selectedAppDylibsPresenting: $_selectedAppDylibsPresenting,
+									selectedCloneAppPresenting: $_selectedCloneAppPresenting,
 									selectedApps: $_selectedApps
 								)
 								.compatMatchedTransitionSource(id: app.uuid ?? "", ns: _namespace)
@@ -121,6 +123,7 @@ struct LibraryView: View {
 									selectedSigningAppPresenting: $_selectedSigningAppPresenting,
 									selectedInstallAppPresenting: $_selectedInstallAppPresenting,
 									selectedAppDylibsPresenting: $_selectedAppDylibsPresenting,
+									selectedCloneAppPresenting: $_selectedCloneAppPresenting,
 									selectedApps: $_selectedApps
 								)
 								.compatMatchedTransitionSource(id: app.uuid ?? "", ns: _namespace)
@@ -210,6 +213,9 @@ struct LibraryView: View {
 			.fullScreenCover(item: $_selectedSigningAppPresenting) { app in
 				SigningView(app: app.base, signAndInstall: app.signAndInstall)
 					.compatNavigationTransition(id: app.base.uuid ?? "", ns: _namespace)
+			}
+			.sheet(item: $_selectedCloneAppPresenting) { app in
+				CloneAppView(app: app.base)
 			}
 			.fullScreenCover(item: $_selectedAppDylibsPresenting) { app in
                 DylibsView(app: app.base)

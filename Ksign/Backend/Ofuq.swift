@@ -17,4 +17,8 @@ enum Ofuq {
 	static let instagram = "https://www.instagram.com/_cpj41"
 	/// The developer's personal Instagram.
 	static let developerInstagram = "https://www.instagram.com/wm3h"
+
+	/// The sources managed from GitHub: the `sources/` folder of the Ofuq repository. A GitHub Action
+	/// lists its JSON files and the links of `sources/links.txt` in this file (see sources/README.md).
+	static let remoteSourcesIndex = "https://raw.githubusercontent.com/ufuq-official/ofuq/main/sources/index.json"
 }

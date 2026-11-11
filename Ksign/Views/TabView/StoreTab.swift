@@ -87,8 +87,11 @@ struct StoreRootModifier: ViewModifier {
 			.task(id: Array(sources)) {
 				await SourcesViewModel.shared.fetchSources(sources)
 			}
-			.sheet(item: $_installer.installTarget) { app in
-				InstallPreviewView(app: app.base)
+			.sheet(item: $_installer.installTarget, onDismiss: {
+				// Clone: the next copy gets its install sheet.
+				_installer.installSheetDidClose()
+			}) { app in
+				InstallPreviewView(app: app.base, closesWhenInstalled: _installer.hasQueuedInstalls)
 					.presentationDetents([.height(200)])
 					.presentationDragIndicator(.visible)
 			}
