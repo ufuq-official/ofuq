@@ -24,6 +24,7 @@ struct LibraryCellView: View {
 	@Binding var selectedAppDylibsPresenting: AnyApp?
 	@Binding var selectedApps: Set<String>
 	@State private var _showActionSheet = false
+	@ObservedObject private var _favorites = LibraryFavorites.shared
 	
 	private var _isSelected: Bool {
 		selectedApps.contains(app.uuid ?? "")
@@ -54,6 +55,12 @@ struct LibraryCellView: View {
 			Spacer()
 			
 			if !isEditing {
+				if _favorites.isFavorite(app.uuid) {
+					Image(systemName: "star.fill")
+						.font(.system(size: 12))
+						.foregroundColor(.yellow)
+						.padding(.trailing, 2)
+				}
 				if app.isSigned, let certInfo = certInfo {
 					HStack(spacing: 4) {
 						Image(systemName: "clock")
@@ -93,6 +100,11 @@ struct LibraryCellView: View {
 				_actionSheetButtons(for: app)
 			}
 		}
+		.swipeActions(edge: .leading) {
+			if !isEditing {
+				_favoriteButton(for: app).tint(.yellow)
+			}
+		}
 		.swipeActions {
 			if !isEditing {
 				_actions(for: app)
@@ -100,6 +112,7 @@ struct LibraryCellView: View {
 		}
 		.contextMenu {
 			if !isEditing {
+				_favoriteButton(for: app)
 				_contextActions(for: app)
 				Divider()
 				_contextActionsExtra(for: app)
@@ -142,6 +155,17 @@ extension LibraryCellView {
 	private func _actions(for app: AppInfoPresentable) -> some View {
 		Button(.localized("Delete"), systemImage: "trash", role: .destructive) {
 			Storage.shared.deleteApp(for: app)
+		}
+	}
+
+	@ViewBuilder
+	private func _favoriteButton(for app: AppInfoPresentable) -> some View {
+		let fav = _favorites.isFavorite(app.uuid)
+		Button(
+			fav ? .localized("Remove from Favorites") : .localized("Add to Favorites"),
+			systemImage: fav ? "star.slash" : "star"
+		) {
+			_favorites.toggle(app.uuid)
 		}
 	}
 	
@@ -210,10 +234,14 @@ extension LibraryCellView {
 			}
 		}
 		
+		Button(_favorites.isFavorite(app.uuid) ? .localized("Remove from Favorites") : .localized("Add to Favorites")) {
+			_favorites.toggle(app.uuid)
+		}
+
 		Button(.localized("Show Dylibs")) {
 			selectedAppDylibsPresenting = AnyApp(base: app)
 		}
-		
+
 		Button(.localized("Get Info")) {
 			selectedInfoAppPresenting = AnyApp(base: app)
 		}
