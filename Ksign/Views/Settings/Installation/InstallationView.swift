@@ -35,7 +35,7 @@ struct InstallationView: View {
             Section {
                 Toggle(.localized("Never Replace Installed Apps"), systemImage: "plus.square.on.square", isOn: $_uniqueBundleIdentifiers)
             } footer: {
-                Text(.localized("Apps installed from the store or shared to Ofuq get a bundle ID that is not on your iPhone yet: the original one, or the original with a number added (1, 2, 3…), so each install is a new copy. Turn this off to update an app that is already installed. Needs a certificate that allows any app ID (*)."))
+                Text(.localized("Apps installed from the store or shared to Ofuq get a bundle ID that is not on your iPhone yet: the original one, or the original with a number added (1, 2, 3…), so each install is a new copy. Turn this off to update an app that is already installed."))
             }
 
             if _installationMethod == 0 {

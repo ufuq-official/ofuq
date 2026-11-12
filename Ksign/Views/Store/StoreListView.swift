@@ -115,6 +115,8 @@ struct StoreListView: View {
 
 	var body: some View {
 		NavigationStack {
+			let items = _items
+
 			List {
 				if !_catalog.apps.isEmpty {
 					_categoryBar
@@ -123,17 +125,20 @@ struct StoreListView: View {
 						.listRowBackground(Color.clear)
 				}
 
-				ForEach(_items) { item in
+				ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
 					StoreAppRow(item: item)
 						.background(
 							NavigationLink(value: item) { EmptyView() }
 								.opacity(0)
 						)
+						.onAppear {
+							IconPrefetcher.prefetch(after: index, in: items) { $0.app.iconURL }
+						}
 				}
 			}
 			.listStyle(.plain)
 			.overlay {
-				if _items.isEmpty {
+				if items.isEmpty {
 					_emptyState
 						.padding(.top, _catalog.apps.isEmpty ? 0 : 60)
 				}
@@ -328,12 +333,15 @@ struct StoreCollectionView: View {
 		let items = _catalog.items(for: collection)
 
 		List {
-			ForEach(items) { item in
+			ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
 				StoreAppRow(item: item)
 					.background(
 						NavigationLink(value: item) { EmptyView() }
 							.opacity(0)
 					)
+					.onAppear {
+						IconPrefetcher.prefetch(after: index, in: items) { $0.app.iconURL }
+					}
 			}
 		}
 		.listStyle(.plain)

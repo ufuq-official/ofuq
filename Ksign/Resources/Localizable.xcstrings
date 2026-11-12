@@ -2411,23 +2411,6 @@
         }
       }
     },
-    "This certificate only allows the app ID %@. The app is signed with it and its extensions are removed, because the certificate cannot cover them. Installing another app with this certificate replaces this one." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "هذه الشهادة تسمح بمعرّف تطبيق واحد فقط: %@. سيُوقَّع التطبيق بهذا المعرّف وتُحذف إضافاته لأن الشهادة لا تغطيها. تثبيت تطبيق آخر بنفس الشهادة سيستبدل هذا التطبيق."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This certificate only allows the app ID %@. The app is signed with it and its extensions are removed, because the certificate cannot cover them. Installing another app with this certificate replaces this one."
-          }
-        }
-      }
-    },
     "Add Source" : {
       "localizations" : {
         "ar" : {
@@ -15822,23 +15805,6 @@
         }
       }
     },
-    "One App Only" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تطبيق واحد فقط"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "One App Only"
-          }
-        }
-      }
-    },
     "Server" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15890,23 +15856,6 @@
         }
       }
     },
-    "Apps installed from the store or shared to Ofuq get a bundle ID that is not on your iPhone yet: the original one, or the original with a number added (1, 2, 3…), so each install is a new copy. Turn this off to update an app that is already installed. Needs a certificate that allows any app ID (*)." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "التطبيقات اللي تثبّتها من المتجر أو تشاركها إلى أفق تاخذ معرّف (Bundle ID) غير موجود على الآيفون: المعرّف الأصلي إذا كان فاضي، أو الأصلي مع رقم (1، 2، 3…)، فكل تثبيت يصير نسخة جديدة. طفّي هذا الخيار إذا تريد تحدّث تطبيق مثبّت. يحتاج شهادة تسمح بأي معرّف (*)."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apps installed from the store or shared to Ofuq get a bundle ID that is not on your iPhone yet: the original one, or the original with a number added (1, 2, 3…), so each install is a new copy. Turn this off to update an app that is already installed. Needs a certificate that allows any app ID (*)."
-          }
-        }
-      }
-    },
     "Show Logs" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15920,23 +15869,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show Logs"
-          }
-        }
-      }
-    },
-    "This certificate only allows the app ID %@. iOS will refuse to install the app with the identifier you entered. To install it, tap Identifier > Matching Certificate's App ID." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "هذه الشهادة تسمح بمعرّف تطبيق واحد فقط: %@. iOS راح يرفض تثبيت التطبيق بالمعرّف اللي كتبته. حتى تثبّته، اضغط على المعرّف ← App ID المطابق للشهادة."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This certificate only allows the app ID %@. iOS will refuse to install the app with the identifier you entered. To install it, tap Identifier > Matching Certificate's App ID."
           }
         }
       }
@@ -16039,6 +15971,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No Privacy Permissions listed."
+          }
+        }
+      }
+    },
+    "Apps installed from the store or shared to Ofuq get a bundle ID that is not on your iPhone yet: the original one, or the original with a number added (1, 2, 3…), so each install is a new copy. Turn this off to update an app that is already installed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "التطبيقات اللي تثبّتها من المتجر أو تشاركها إلى أفق تاخذ معرّف (Bundle ID) غير موجود على الآيفون: المعرّف الأصلي إذا كان فاضي، أو الأصلي مع رقم (1، 2، 3…)، فكل تثبيت يصير نسخة جديدة. طفّي هذا الخيار إذا تريد تحدّث تطبيق مثبّت."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apps installed from the store or shared to Ofuq get a bundle ID that is not on your iPhone yet: the original one, or the original with a number added (1, 2, 3…), so each install is a new copy. Turn this off to update an app that is already installed."
+          }
+        }
+      }
+    },
+    "Copy Download URLs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نسخ روابط التنزيل"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Download URLs"
           }
         }
       }

@@ -700,6 +700,15 @@ final class StoreCatalog: ObservableObject {
 	/// The icons the Today, Apps and Games tabs show first are fetched ahead, so they are there when the
 	/// tab opens. Only the first ones: the sources have tens of thousands of apps.
 	private func _prefetchFirstIcons() {
+		// The rows on screen when Apps or Games opens, and the Today tab's top lists: ready to show at once.
+		let firstRows: [ArraySlice<StoreApp>] = [
+			nonGames.prefix(12),
+			games.prefix(12),
+			topApps.prefix(4),
+			topGames.prefix(4),
+		]
+		IconPrefetcher.prepare(firstRows.joined().compactMap(\.app.iconURL))
+
 		let lists: [ArraySlice<StoreApp>] = [
 			todayStories[...],
 			topApps.prefix(24),

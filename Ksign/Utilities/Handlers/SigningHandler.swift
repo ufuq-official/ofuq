@@ -87,15 +87,6 @@ final class SigningHandler: NSObject {
 			try await _removeFiles(for: movedAppPath, from: _options.removeFiles)
 		}
 
-		if
-			!_options.onlyModify,
-			!_options.doAdhocSigning,
-			let certificate = appCertificate,
-			let appID = CertificateCheck.explicitAppID(for: certificate)
-		{
-			try await _prepareForExplicitAppID(appID, at: movedAppPath)
-		}
-
         try await _removeCodeSignature(for: movedAppPath)
 		try await _removeProvisioning(for: movedAppPath)
 		
@@ -195,26 +186,6 @@ final class SigningHandler: NSObject {
 }
 
 extension SigningHandler {
-	/// A provisioning profile made for one app ID only signs an app with exactly that bundle ID, and it has
-	/// nothing that covers app extensions or a Watch app. With anything else iOS refuses the whole install
-	/// ("integrity could not be verified"), so the app takes the profile's ID and the extensions are removed.
-	/// An identifier the user typed in the signing screen is kept (the screen warns that iOS will refuse it).
-	private func _prepareForExplicitAppID(_ appID: String, at app: URL) async throws {
-		if let typed = _options.appIdentifier, typed != _app.identifier, typed != appID {
-			Logger.signing.warning("[\(self._uuid)] Certificate only allows \(appID), keeping the identifier \(typed) that was entered")
-		} else {
-			_options.appIdentifier = appID
-			Logger.signing.info("[\(self._uuid)] Certificate only allows \(appID), using it as the bundle ID")
-		}
-
-		for folder in ["PlugIns", "Extensions", "Watch"] {
-			let url = app.appendingPathComponent(folder)
-			guard _fileManager.fileExists(atPath: url.path) else { continue }
-			try _fileManager.removeItem(at: url)
-			Logger.signing.info("[\(self._uuid)] Removed \(folder), the certificate cannot sign it")
-		}
-	}
-
 	private func _modifyDict(using infoDictionary: NSMutableDictionary, with options: Options, to app: URL) async throws {
 		if options.fileSharing { infoDictionary.setObject(true, forKey: "UISupportsDocumentBrowser" as NSCopying) }
 		if options.itunesFileSharing { infoDictionary.setObject(true, forKey: "UIFileSharingEnabled" as NSCopying) }

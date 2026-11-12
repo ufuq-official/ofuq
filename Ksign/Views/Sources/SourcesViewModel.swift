@@ -150,6 +150,8 @@ final class SourcesViewModel: ObservableObject {
 			await MainActor.run {
 				if self.sources[item.source] == nil {
 					self.sources[item.source] = repository
+					Self._fillDetails(of: item.source, from: repository)
+					Self._prefetchFirstIcons(of: repository)
 				}
 			}
 		}
@@ -175,8 +177,42 @@ final class SourcesViewModel: ObservableObject {
 				// The source may have been removed while it downloaded.
 				guard !job.item.source.isDeleted, job.item.source.managedObjectContext != nil else { return }
 				self.sources[job.item.source] = repository
+				Self._fillDetails(of: job.item.source, from: repository)
+				Self._prefetchFirstIcons(of: repository)
 			}
 		}
+	}
+
+	/// Built-in sources are added before their file is downloaded (see BuiltInSources.swift): their icon,
+	/// and their name if they have none, come from the file. Also keeps a source's icon up to date.
+	@MainActor
+	private static func _fillDetails(of source: AltSource, from repository: ASRepository) {
+		guard !source.isDeleted, source.managedObjectContext != nil else { return }
+		var changed = false
+
+		if let icon = repository.currentIconURL, source.iconURL != icon {
+			source.iconURL = icon
+			changed = true
+		}
+		if let name = repository.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+			let current = source.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+			if current.isEmpty || current == "Unknown" {
+				source.name = name
+				changed = true
+			}
+		}
+		if changed {
+			Storage.shared.saveContext()
+		}
+	}
+
+	/// The source's icon and the icons of its first apps (the rows on screen when it opens) are made ready,
+	/// so opening a source shows them at once.
+	@MainActor
+	private static func _prefetchFirstIcons(of repository: ASRepository) {
+		let ascending = UserDefaults.standard.object(forKey: "Feather.sortAscending") as? Bool ?? true
+		let first = ascending ? Array(repository.apps.prefix(10)) : Array(repository.apps.suffix(10).reversed())
+		IconPrefetcher.prepare([repository.currentIconURL].compactMap { $0 } + first.compactMap(\.iconURL))
 	}
 
 	/// Runs `body` for every element, at most `maxConcurrent` at a time.

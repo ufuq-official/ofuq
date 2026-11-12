@@ -56,13 +56,6 @@ extension CertificatesCellView {
 		}
 	}
 	
-	/// Read from the profile already decoded for this cell (see `CertificateCheck.explicitAppID`).
-	private var _allowsOneAppOnly: Bool {
-		guard let appID = data?.Entitlements?["application-identifier"]?.value as? String else { return false }
-		let identifier = appID.split(separator: ".").dropFirst().joined(separator: ".")
-		return !identifier.isEmpty && !identifier.contains("*")
-	}
-
 	private func _buildPills(from cert: CertificatePair) -> [NBPillItem] {
 		var pills: [NBPillItem] = []
 		
@@ -76,13 +69,6 @@ extension CertificatesCellView {
         else {
             pills.append(NBPillItem(title: "Valid", icon: "checkmark.circle", color: .green))
         }
-
-		// Ofuq: a profile for one app ID only signs one app, so every app signed with it has the same
-		// bundle ID and replaces the previous one on the iPhone.
-		if _allowsOneAppOnly {
-			pills.append(NBPillItem(title: .localized("One App Only"), icon: "1.square", color: .orange))
-		}
-		
 		if let info = cert.expiration?.expirationInfo() {
 			pills.append(NBPillItem(
 				title: info.formatted,

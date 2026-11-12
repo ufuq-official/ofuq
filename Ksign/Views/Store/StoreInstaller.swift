@@ -374,10 +374,8 @@ final class StoreInstaller: ObservableObject {
 
 		var finalOptions = Self.installOptions(for: imported, certificate: certificate)
 		// Never replace an app that is on the iPhone: the bundle ID gets the next free number.
-		// Not possible with a certificate that allows one app ID only (iOS refuses any other ID).
 		if
 			InstalledApps.isEnabled,
-			CertificateCheck.explicitAppID(for: certificate) == nil,
 			let identifier = finalOptions.appIdentifier ?? imported.identifier
 		{
 			let unique = InstalledApps.uniqueIdentifier(for: identifier)
@@ -404,7 +402,6 @@ final class StoreInstaller: ObservableObject {
 
 	/// The saved signing options, with what an install needs forced on, and the same adjustments the signing
 	/// screen makes when it opens (PPQ protection, saved identifiers and names, prefix/suffix).
-	/// With a certificate that allows one app ID only, the app always gets that ID (any other is refused by iOS).
 	static func installOptions(for app: AppInfoPresentable, certificate: CertificatePair) -> Options {
 		let saved = OptionsManager.shared.options
 		var options = saved
@@ -450,10 +447,6 @@ final class StoreInstaller: ObservableObject {
 				name = name + suffix
 			}
 			options.appName = name
-		}
-
-		if let appID = CertificateCheck.explicitAppID(for: certificate) {
-			options.appIdentifier = appID
 		}
 
 		return options

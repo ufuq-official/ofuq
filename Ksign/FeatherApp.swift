@@ -106,11 +106,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
         _createPipeline()
         _createSourcesDirectory()
-        if !UserDefaults.standard.bool(forKey: "hasInitializedBuiltInSources") {
-            _initializeBuiltInSources()
-            UserDefaults.standard.set(true, forKey: "hasInitializedBuiltInSources")
-        }
         _removeRetiredBuiltInSources()
+        // Ofuq: every launch, not only the first one: a built-in source that could not be added
+        // before (slow network, server down) is added now. The ones the user removed stay removed.
+        _initializeBuiltInSources()
         // Ofuq: sources added or removed on GitHub (sources/ folder of the repository).
         RemoteSources.sync()
 

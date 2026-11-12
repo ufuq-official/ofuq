@@ -20,6 +20,8 @@ struct SourceAppsTableRepresentableView: UIViewRepresentable {
         let tableView = UITableView(frame: .zero, style: .plain)
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
+        // Ofuq: icons of the rows about to appear are made ready before they are on screen.
+        tableView.prefetchDataSource = context.coordinator
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "AppCell")
         tableView.register(UITableViewHeaderFooterView.self, forHeaderFooterViewReuseIdentifier: "SectionHeader")
         
@@ -86,7 +88,7 @@ struct SourceAppsTableRepresentableView: UIViewRepresentable {
 }
 
 // MARK: - Representable Extension: Coordinator
-extension SourceAppsTableRepresentableView { class Coordinator: NSObject, UITableViewDataSource, UITableViewDelegate {
+extension SourceAppsTableRepresentableView { class Coordinator: NSObject, UITableViewDataSource, UITableViewDelegate, UITableViewDataSourcePrefetching {
     var sources: [ASRepository]
     var searchText: String
     var sortOption: SourceAppsView.SortOption
@@ -199,6 +201,26 @@ extension SourceAppsTableRepresentableView { class Coordinator: NSObject, UITabl
     }
     
     // MARK: TableView
+    
+    func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {
+        let entries = indexPaths.compactMap { _entry(at: $0) }
+        IconPrefetcher.prepare(entries.compactMap { $0.app.iconURL } + entries.compactMap { $0.source.currentIconURL })
+    }
+    
+    /// The row at `indexPath`, or nil when there is none (the list changed meanwhile).
+    private func _entry(at indexPath: IndexPath) -> (source: ASRepository, app: ASRepository.App)? {
+        let rows: [(source: ASRepository, app: ASRepository.App)]?
+        switch sortOption {
+        case .default:
+            rows = indexPath.section == 0 ? _sortedApps : nil
+        case .name, .date:
+            guard _sortedSectionTitles.indices.contains(indexPath.section) else { return nil }
+            let title = _sortedSectionTitles[indexPath.section]
+            rows = sortOption == .name ? _groupedAppsByNameFirstLetter[title] : _groupedAppsByDate[title]
+        }
+        guard let rows, rows.indices.contains(indexPath.row) else { return nil }
+        return rows[indexPath.row]
+    }
     
     func numberOfSections(in tableView: UITableView) -> Int {
         switch sortOption {

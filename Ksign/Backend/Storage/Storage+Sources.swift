@@ -115,10 +115,9 @@ extension Storage {
 			// AppDelegate also takes them out of apps that added them before.
 		]
 		
-		// Silent: a source that is down on first launch must not greet the user with an error alert.
-		for urlString in builtInSourceURLs {
-			FR.handleSource(urlString, silent: true) { }
-		}
+		// Ofuq: checked every launch. Missing ones are added again, the ones the user removed are not
+		// (see BuiltInSources.swift).
+		BuiltInSources.ensure(builtInSourceURLs)
 	}
 
 	func deleteSource(for source: AltSource) {
