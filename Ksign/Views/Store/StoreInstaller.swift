@@ -34,11 +34,24 @@ final class StoreInstaller: ObservableObject {
 
 	/// What each app is doing, keyed by `ASRepository.App.currentUniqueId`.
 	@Published private(set) var phases: [String: Phase] = [:]
-	/// The signed app waiting for its install sheet.
+	/// The signed app waiting for its install sheet, shown over the tabs.
 	@Published var installTarget: AnyApp?
-	/// Signed apps (UUIDs) that get the install sheet one after another, after the current one closes.
-	/// Used for the copies made by Clone: iOS shows one install prompt at a time.
-	private(set) var installQueue: [String] = []
+	/// The signed app waiting for its install sheet, shown by the Library when one is on screen
+	/// (a sheet cannot open from the tabs while the Library sheet covers them).
+	@Published var libraryInstallTarget: AnyApp?
+	/// Apps being signed for an install; the Library lists them while it waits.
+	@Published private(set) var signingApps: [SigningApp] = []
+
+	struct SigningApp: Identifiable, Equatable {
+		let id: String
+		let name: String
+	}
+
+	/// The Library screens on screen (a sheet, or the iPad sidebar), one token each: an appear reported
+	/// twice by SwiftUI is not counted twice.
+	private var _visibleLibraries = Set<UUID>()
+	/// An install waiting for the Library to open, see `_presentInstall`.
+	private var _waitingForLibrary: AnyApp?
 
 	private struct Pending {
 		let bundleID: String?
@@ -139,10 +152,9 @@ final class StoreInstaller: ObservableObject {
 		_ = DownloadManager.shared.startDownload(from: url, id: app.currentUniqueId)
 	}
 
-	/// An .ipa opened with Ofuq from Share, Files, Telegram, AirDrop…: it is imported into the Library with
-	/// its progress shown at the top (like a download), signed with the selected certificate, then the
-	/// install prompt opens — the same steps as Install in the store.
-	/// Without a certificate it is only imported, so it can be signed later.
+	/// An .ipa opened with Ofuq from Share, Files, Telegram, AirDrop…: the Library opens and shows the
+	/// import, the app is signed with the selected certificate, then the install prompt opens — the same
+	/// steps as Install in the store. Without a certificate it is only imported, so it can be signed later.
 	func installFile(_ url: URL) {
 		let id = "OfuqShared_\(UUID().uuidString)"
 
@@ -162,6 +174,7 @@ final class StoreInstaller: ObservableObject {
 		}
 		let download = DownloadManager.shared.startArchive(from: url, id: id)
 		UIImpactFeedbackGenerator(style: .light).impactOccurred()
+		showLibrary()
 
 		// The installer lives as long as the app (`shared`), so it is captured strongly.
 		Task.detached(priority: .userInitiated) {
@@ -235,6 +248,75 @@ final class StoreInstaller: ObservableObject {
 		}
 	}
 
+	// MARK: Library
+
+	/// Shows the Library over whatever is on screen, unless a Library is already visible.
+	/// Must be called on the main queue.
+	func showLibrary(attempt: Int = 0) {
+		guard _visibleLibraries.isEmpty else { return }
+
+		guard
+			let top = UIApplication.topViewController(),
+			top.viewIfLoaded?.window != nil,
+			!(top is UIAlertController),
+			!top.isBeingPresented,
+			!top.isBeingDismissed
+		else {
+			// Still launching, or an alert is on screen (or leaving it): try again shortly.
+			if attempt < 40 {
+				DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+					self?.showLibrary(attempt: attempt + 1)
+				}
+			} else if let waiting = _waitingForLibrary {
+				// The Library could not open: show the install over the tabs instead.
+				_waitingForLibrary = nil
+				installTarget = waiting
+			}
+			return
+		}
+
+		let library = LibraryView()
+			.environment(\.managedObjectContext, Storage.shared.context)
+		let host = UIHostingController(rootView: library)
+		host.sheetPresentationController?.prefersGrabberVisible = true
+		top.present(host, animated: true)
+	}
+
+	func libraryDidAppear(_ token: UUID) {
+		_visibleLibraries.insert(token)
+		guard let waiting = _waitingForLibrary else { return }
+		_waitingForLibrary = nil
+		// A sheet can only open from the Library once it has finished appearing.
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+			self?.libraryInstallTarget = waiting
+		}
+	}
+
+	func libraryDidDisappear(_ token: UUID) {
+		_visibleLibraries.remove(token)
+	}
+
+	/// The Library had another sheet open, so the install sheet could not open: it closed that sheet,
+	/// and the install sheet is shown again once it is gone.
+	func retryLibraryInstall() {
+		guard let target = libraryInstallTarget else { return }
+		libraryInstallTarget = nil
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+			self?.libraryInstallTarget = target
+		}
+	}
+
+	/// True when something (an account menu screen, an alert…) is presented over the tabs, so a sheet from
+	/// the tabs cannot open.
+	private static func _tabsAreCovered() -> Bool {
+		UIApplication.shared.connectedScenes
+			.compactMap { $0 as? UIWindowScene }
+			.flatMap(\.windows)
+			.first(where: \.isKeyWindow)?
+			.rootViewController?
+			.presentedViewController != nil
+	}
+
 	/// The certificate picked in Settings, the same way the signing screen reads it.
 	static func selectedCertificate() -> CertificatePair? {
 		let request = NSFetchRequest<CertificatePair>(entityName: "CertificatePair")
@@ -290,7 +372,20 @@ final class StoreInstaller: ObservableObject {
 			return
 		}
 
-		let finalOptions = Self.installOptions(for: imported, certificate: certificate)
+		var finalOptions = Self.installOptions(for: imported, certificate: certificate)
+		// Never replace an app that is on the iPhone: the bundle ID gets the next free number.
+		// Not possible with a certificate that allows one app ID only (iOS refuses any other ID).
+		if
+			InstalledApps.isEnabled,
+			CertificateCheck.explicitAppID(for: certificate) == nil,
+			let identifier = finalOptions.appIdentifier ?? imported.identifier
+		{
+			let unique = InstalledApps.uniqueIdentifier(for: identifier)
+			if unique != identifier {
+				finalOptions.appIdentifier = unique
+			}
+		}
+		signingApps.append(SigningApp(id: id, name: imported.name ?? .localized("Unknown")))
 
 		Self.signForInstall(imported, options: finalOptions, certificate: certificate) { [weak self] result in
 			guard let self else { return }
@@ -309,6 +404,7 @@ final class StoreInstaller: ObservableObject {
 
 	/// The saved signing options, with what an install needs forced on, and the same adjustments the signing
 	/// screen makes when it opens (PPQ protection, saved identifiers and names, prefix/suffix).
+	/// With a certificate that allows one app ID only, the app always gets that ID (any other is refused by iOS).
 	static func installOptions(for app: AppInfoPresentable, certificate: CertificatePair) -> Options {
 		let saved = OptionsManager.shared.options
 		var options = saved
@@ -356,6 +452,10 @@ final class StoreInstaller: ObservableObject {
 			options.appName = name
 		}
 
+		if let appID = CertificateCheck.explicitAppID(for: certificate) {
+			options.appIdentifier = appID
+		}
+
 		return options
 	}
 
@@ -372,7 +472,7 @@ final class StoreInstaller: ObservableObject {
 		handler.appIcon = nil
 		let signedUUID = handler.uuid
 
-		Task.detached {
+		Task.detached(priority: .userInitiated) {
 			do {
 				try await handler.copy()
 				try await handler.modify()
@@ -411,44 +511,22 @@ final class StoreInstaller: ObservableObject {
 			return
 		}
 
-		installTarget = AnyApp(base: signed)
+		let target = AnyApp(base: signed)
+		if !_visibleLibraries.isEmpty {
+			libraryInstallTarget = target
+		} else if Self._tabsAreCovered() {
+			// The tabs cannot show a sheet now: the Library opens on top and shows the install.
+			_waitingForLibrary = target
+			showLibrary()
+		} else {
+			installTarget = target
+		}
 	}
 
 	private func _finish(_ id: String) {
 		_pending[id] = nil
 		phases[id] = nil
-	}
-
-	// MARK: Install queue
-
-	/// True while more signed apps wait for the install sheet after the current one.
-	var hasQueuedInstalls: Bool {
-		!installQueue.isEmpty
-	}
-
-	/// Opens the install sheet for each signed app, one after another. Must be called on the main queue.
-	func queueInstalls(_ signedUUIDs: [String]) {
-		guard !signedUUIDs.isEmpty else { return }
-		installQueue.append(contentsOf: signedUUIDs)
-		if installTarget == nil {
-			_presentNextQueuedInstall()
-		}
-	}
-
-	/// Called when the install sheet closes: the next app in the queue gets its sheet.
-	func installSheetDidClose() {
-		guard hasQueuedInstalls else { return }
-		// Give the closing sheet time to leave the screen; a sheet cannot open while another one closes.
-		DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-			guard let self, self.installTarget == nil else { return }
-			self._presentNextQueuedInstall()
-		}
-	}
-
-	private func _presentNextQueuedInstall() {
-		guard !installQueue.isEmpty else { return }
-		let next = installQueue.removeFirst()
-		_presentInstall(signedUUID: next)
+		signingApps.removeAll { $0.id == id }
 	}
 
 	// MARK: Signature check

@@ -18,7 +18,7 @@ enum FR {
 		download: Download? = nil,
 		completion: @escaping (Error?) -> Void
 	) {
-		Task.detached {
+		Task.detached(priority: .userInitiated) {
 			let handler = AppFileHandler(file: ipa, download: download)
 			
 			do {
@@ -47,7 +47,7 @@ enum FR {
 		certificate: CertificatePair?,
 		completion: @escaping (Error?) -> Void
 	) {
-		Task.detached {
+		Task.detached(priority: .userInitiated) {
 			let handler = SigningHandler(app: app, options: options)
 			if !options.onlyModify {
 				handler.appCertificate = certificate

@@ -45,7 +45,7 @@ final class ArchiveHandler: NSObject {
 	}
 	
 	func archive() async throws -> URL {
-		return try await Task.detached(priority: .background) { [self] in
+		return try await Task.detached(priority: .userInitiated) { [self] in
 			guard let payloadUrl = await self._payloadUrl else {
 				throw SigningFileHandlerError.appNotFound
 			}

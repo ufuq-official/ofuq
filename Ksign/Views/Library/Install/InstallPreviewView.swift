@@ -28,13 +28,10 @@ struct InstallPreviewView: View {
 	@StateObject var viewModel: InstallerStatusViewModel
 	@StateObject var installer: ServerInstaller
 	@State var isSharing: Bool
-	/// Closes the sheet by itself once the app is installed (Clone: the next copy's sheet follows).
-	let closesWhenInstalled: Bool
 
-	init(app: AppInfoPresentable, isSharing: Bool = false, closesWhenInstalled: Bool = false) {
+	init(app: AppInfoPresentable, isSharing: Bool = false) {
 		self.app = app
 		self.isSharing = isSharing
-		self.closesWhenInstalled = closesWhenInstalled
         let method = UserDefaults.standard.integer(forKey: "Feather.installationMethod")
 		let viewModel = InstallerStatusViewModel(isIdevice: method == 1)
 		self._viewModel = StateObject(wrappedValue: viewModel)
@@ -89,12 +86,6 @@ struct InstallPreviewView: View {
             default:
                 break
             }
-
-			if closesWhenInstalled, case .completed = newStatus {
-				DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-					dismiss()
-				}
-			}
 		}
 		.onAppear(perform: _install)
 		.onAppear {
@@ -125,7 +116,12 @@ struct InstallPreviewView: View {
             return
         }
 
-		Task.detached {
+		// This bundle ID is on the iPhone from now on: automatic installs give the next app another one.
+		if !isSharing {
+			InstalledApps.didSendForInstall(app.identifier)
+		}
+
+		Task.detached(priority: .userInitiated) {
 			do {
 				let handler = await ArchiveHandler(app: app, viewModel: viewModel)
 				try await handler.move()

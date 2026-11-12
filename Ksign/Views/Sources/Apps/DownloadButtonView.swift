@@ -13,6 +13,7 @@ import NimbleViews
 struct DownloadButtonView: View {
 	let app: ASRepository.App
 	@ObservedObject private var downloadManager = DownloadManager.shared
+	@ObservedObject private var _installer = StoreInstaller.shared
 
 	@State private var downloadProgress: Double = 0
 	@State private var cancellable: AnyCancellable?
@@ -38,9 +39,18 @@ struct DownloadButtonView: View {
 					}
 				}
 				.compatTransition()
+			} else if _installer.phase(for: app) == .signing {
+				// Downloaded, now being signed for the install.
+				ProgressView()
+					.frame(width: 31, height: 31)
+					.compatTransition()
 			} else {
 				Button {
-					if let url = app.currentDownloadUrl {
+					// Ofuq: like Install in the store, the app is downloaded, signed with the selected
+					// certificate and installed. Without a certificate it is only downloaded, as before.
+					if StoreInstaller.selectedCertificate() != nil {
+						_installer.install(app)
+					} else if let url = app.currentDownloadUrl {
 						_ = downloadManager.startDownload(from: url, id: app.currentUniqueId)
 					}
 				} label: {

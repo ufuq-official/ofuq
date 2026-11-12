@@ -198,9 +198,14 @@ extension SigningHandler {
 	/// A provisioning profile made for one app ID only signs an app with exactly that bundle ID, and it has
 	/// nothing that covers app extensions or a Watch app. With anything else iOS refuses the whole install
 	/// ("integrity could not be verified"), so the app takes the profile's ID and the extensions are removed.
+	/// An identifier the user typed in the signing screen is kept (the screen warns that iOS will refuse it).
 	private func _prepareForExplicitAppID(_ appID: String, at app: URL) async throws {
-		_options.appIdentifier = appID
-		Logger.signing.info("[\(self._uuid)] Certificate only allows \(appID), using it as the bundle ID")
+		if let typed = _options.appIdentifier, typed != _app.identifier, typed != appID {
+			Logger.signing.warning("[\(self._uuid)] Certificate only allows \(appID), keeping the identifier \(typed) that was entered")
+		} else {
+			_options.appIdentifier = appID
+			Logger.signing.info("[\(self._uuid)] Certificate only allows \(appID), using it as the bundle ID")
+		}
 
 		for folder in ["PlugIns", "Extensions", "Watch"] {
 			let url = app.appendingPathComponent(folder)

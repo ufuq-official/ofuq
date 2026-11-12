@@ -692,8 +692,25 @@ final class StoreCatalog: ObservableObject {
 				self.byCategory = result.byCategory
 				// Last: `apps` is the published value the screens observe.
 				self.apps = result.apps
+				self._prefetchFirstIcons()
 			}
 		}
+	}
+
+	/// The icons the Today, Apps and Games tabs show first are fetched ahead, so they are there when the
+	/// tab opens. Only the first ones: the sources have tens of thousands of apps.
+	private func _prefetchFirstIcons() {
+		let lists: [ArraySlice<StoreApp>] = [
+			todayStories[...],
+			topApps.prefix(24),
+			topGames.prefix(24),
+			nonGames.prefix(24),
+			games.prefix(24),
+			suggestions.prefix(12),
+		]
+		var seen = Set<URL>()
+		let urls = lists.joined().compactMap(\.app.iconURL).filter { seen.insert($0).inserted }
+		IconPrefetcher.prefetch(urls)
 	}
 
 	private func _isLatest(_ generation: Int) -> Bool {

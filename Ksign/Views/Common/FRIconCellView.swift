@@ -7,6 +7,7 @@
 
 import SwiftUI
 import NukeUI
+import Nuke
 import NimbleViews
 
 // MARK: - View
@@ -32,7 +33,7 @@ struct FRIconCellView: View {
 	var body: some View {
 		HStack(spacing: 9) {
 			if let iconURL = iconUrl {
-				LazyImage(url: iconURL) { state in
+				LazyImage(request: .icon(iconURL, size: 56)) { state in
 					if let image = state.image {
 						image.appIconStyle()
 					} else {

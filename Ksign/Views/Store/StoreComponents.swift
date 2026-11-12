@@ -8,6 +8,7 @@
 import SwiftUI
 import AltSourceKit
 import NukeUI
+import Nuke
 
 // MARK: - Icon
 struct StoreAppIcon: View {
@@ -17,13 +18,15 @@ struct StoreAppIcon: View {
 	var body: some View {
 		Group {
 			if let url {
-				LazyImage(url: url) { state in
+				LazyImage(request: .icon(url, size: size)) { state in
 					if let image = state.image {
 						image.appIconStyle(size: size)
 					} else {
 						_placeholder
 					}
 				}
+				// Scrolled past before it arrived: it still finishes (slowly), so it is cached for next time.
+				.onDisappear(.lowerPriority)
 			} else {
 				_placeholder
 			}

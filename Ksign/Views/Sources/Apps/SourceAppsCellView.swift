@@ -10,6 +10,7 @@ import AltSourceKit
 import NimbleViews
 import Combine
 import NukeUI
+import Nuke
 
 // thats a whole pharaghraph of codes
 struct SourceAppsCellView: View {
@@ -28,7 +29,7 @@ struct SourceAppsCellView: View {
                 )
                 .overlay(alignment: .bottomLeading) {
                     if let iconURL = source.currentIconURL {
-                        LazyImage(url: iconURL) { state in
+                        LazyImage(request: .icon(iconURL, size: 20)) { state in
                             if let image = state.image {
                                 image
                                     .appIconStyle(size: 20, isCircle: true, background: Color(uiColor: .secondarySystemBackground))

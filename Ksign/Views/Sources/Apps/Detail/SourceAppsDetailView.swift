@@ -10,6 +10,7 @@ import Combine
 import AltSourceKit
 import NimbleViews
 import NukeUI
+import Nuke
 
 // MARK: - SourceAppsDetailView
 struct SourceAppsDetailView: View {
@@ -35,7 +36,7 @@ struct SourceAppsDetailView: View {
 			VStack(alignment: .leading, spacing: 10) {
 				HStack(spacing: 10) {
 					if let iconURL = app.iconURL {
-						LazyImage(url: iconURL) { state in
+						LazyImage(request: .icon(iconURL, size: 111)) { state in
 							if let image = state.image {
 								image.appIconStyle(size: 111, isCircle: false)
 							} else {

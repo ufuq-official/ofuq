@@ -38,30 +38,18 @@ public struct ASRepository: Sendable, Decodable, Hashable, Identifiable {
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try container.decodeIfPresent(String.self, forKey: .id)
-        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.id = container.lenientString(forKey: .id)
+        self.name = container.lenientString(forKey: .name)
 
-        self.subtitle = try container.decodeIfPresent(
-            String.self,
-            forKey: .subtitle
-        )
-        self.description = try container.decodeIfPresent(
-            String.self,
-            forKey: .description
-        )
-        self.website = try container.decodeIfPresent(URL.self, forKey: .website)
-        self.iconURL = try container.decodeIfPresent(
-            URL.self,
-            forKey: .iconURL
-        )
-        self.headerURL = try container.decodeIfPresent(
-            URL.self,
-            forKey: .headerURL
-        )
-        self.tintColor =
-            try container.decodeIfPresent(Color.self, forKey: .tintColor)
+        self.subtitle = container.lenientString(forKey: .subtitle)
+        self.description = container.lenientString(forKey: .description)
+        // Ofuq: optional fields that are malformed are left out instead of rejecting the whole source.
+        self.website = container.lenientURL(forKey: .website)
+        self.iconURL = container.lenientURL(forKey: .iconURL)
+        self.headerURL = container.lenientURL(forKey: .headerURL)
+        self.tintColor = container.lenient(Color.self, forKey: .tintColor)
 
-        let patreonString = try container.decodeIfPresent(String.self, forKey: .patreonURL)
+        let patreonString = container.lenientString(forKey: .patreonURL)
         
         // another case of inconsistent altstore stuff
         if
@@ -74,16 +62,22 @@ public struct ASRepository: Sendable, Decodable, Hashable, Identifiable {
             self.patreonURL = nil
         }
 
-        self.userInfo = try container.decodeIfPresent(
-            UserInfo.self,
-            forKey: .userInfo
-        )
+        self.userInfo = container.lenient(UserInfo.self, forKey: .userInfo)
 
-        let decodedApps = try container.decodeIfPresent([App].self, forKey: .apps)
+        // Ofuq: an app that cannot be read is left out, the other apps of the source still load.
+        let decodedApps = try container.decodeIfPresent(ASLossyArray<App>.self, forKey: .apps)
         guard
-            let apps = decodedApps,
+            let apps = decodedApps?.elements,
             !apps.isEmpty
         else {
+            // Every app failed: say why, an AltStore PAL source keeps its own message.
+            let errors = decodedApps?.errors ?? []
+            if let palError = errors.first(where: { ($0 as NSError).code == 112789 }) {
+                throw palError
+            }
+            if let firstError = errors.first {
+                throw firstError
+            }
             throw NSError(
                 domain: "FeatherSources",
                 code: 44521,
@@ -94,9 +88,8 @@ public struct ASRepository: Sendable, Decodable, Hashable, Identifiable {
         }
         
         self.apps = apps
-        self.featuredApps =
-            try container.decodeIfPresent([App.ID].self, forKey: .featuredApps) ?? []
-        self.news = try container.decodeIfPresent([News].self, forKey: .news) ?? []
+        self.featuredApps = container.lossyArray(App.ID.self, forKey: .featuredApps) ?? []
+        self.news = container.lossyArray(News.self, forKey: .news) ?? []
     }
 
     public enum CodingKeys: String, CodingKey {
@@ -250,82 +243,50 @@ extension ASRepository {
 
         public init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            self.id = try container.decodeIfPresent(String.self, forKey: .id)
-            self.name = try container.decodeIfPresent(String.self, forKey: .name)
+            // Ofuq: a malformed optional field is left out instead of rejecting the app (and so the source).
+            self.id = container.lenientString(forKey: .id)
+            self.name = container.lenientString(forKey: .name)
 
-            self.subtitle = try container.decodeIfPresent(
-                String.self,
-                forKey: .subtitle
-            )
-            self.description = try container.decodeIfPresent(
-                String.self,
-                forKey: .description
-            )
+            self.subtitle = container.lenientString(forKey: .subtitle)
+            self.description = container.lenientString(forKey: .description)
 
-            self.developer = try container.decodeIfPresent(String.self, forKey: .developer)
+            self.developer = container.lenientString(forKey: .developer)
 
-            self.versions = try container.decodeIfPresent(
-                [Version].self,
-                forKey: .versions
-            )
+            // A version without a version number is left out, the others stay.
+            self.versions = container.lossyArray(Version.self, forKey: .versions)
 
-            self.version = try container.decodeIfPresent(
-                String.self,
-                forKey: .version
-            )
+            self.version = container.lenientString(forKey: .version)
 
-            self.versionDate = try container.decodeIfPresent(
-                DateParsed.self,
-                forKey: .versionDate
-            )
+            self.versionDate = container.lenient(DateParsed.self, forKey: .versionDate)
 
-            self.versionDescription = try container.decodeIfPresent(
-                String.self,
-                forKey: .versionDescription
-            )
+            self.versionDescription = container.lenientString(forKey: .versionDescription)
 
-            self.downloadURL = try container.decodeIfPresent(URL.self, forKey: .downloadURL)
+            self.downloadURL = container.lenientURL(forKey: .downloadURL)
 
-            self.localizedDescription =
-                try container.decodeIfPresent(
-                    String.self,
-                    forKey: .localizedDescription
-                )
+            self.localizedDescription = container.lenientString(forKey: .localizedDescription)
 
-            self.iconURL = try? container.decode(URL.self, forKey: .iconURL)
+            self.iconURL = container.lenientURL(forKey: .iconURL)
 
-            self.tintColor =
-                try container.decodeIfPresent(Color.self, forKey: .tintColor)
+            self.tintColor = container.lenient(Color.self, forKey: .tintColor)
 
             self.size =
                 (try? container.decodeIfPresent(Int64.self, forKey: .size))
                 ?? (try? container.decodeIfPresent(String.self, forKey: .size))
                 .flatMap { Int64($0) }
 
-            self.category = try container.decodeIfPresent(
-                String.self,
-                forKey: .category
-            )
+            self.category = container.lenientString(forKey: .category)
 
             self.beta =
                 (try? container.decodeIfPresent(Bool.self, forKey: .beta)) ?? false
 
-            self.permissions = try container.decodeIfPresent(
-                [Permission].self,
-                forKey: .permissions
-            )
-            self.appPermissions = try container.decodeIfPresent(
-                AppPermissions.self,
-                forKey: .appPermissions
-            )
+            self.permissions = container.lossyArray(Permission.self, forKey: .permissions)
+            self.appPermissions = container.lenient(AppPermissions.self, forKey: .appPermissions)
 
-            self.screenshots = try container.decodeIfPresent(
-                Screenshots.self,
-                forKey: .screenshots
-            )
+            self.screenshots = container.lenient(Screenshots.self, forKey: .screenshots)
 
-            self.screenshotURLs =
-                try container.decodeIfPresent([URL].self, forKey: .screenshotURLs)
+            // Links with a space are refused by iOS 16: they are encoded, unusable ones are left out.
+            self.screenshotURLs = container.lossyArray(String.self, forKey: .screenshotURLs)?
+                .compactMap(URL.asLenient)
 
             self.downloads = Self._decodeCount(
                 in: container,
@@ -333,7 +294,7 @@ extension ASRepository {
             )
 
             if
-                let marketplaceID = try container.decodeIfPresent(String.self, forKey: .marketplaceID),
+                let marketplaceID = container.lenientString(forKey: .marketplaceID),
                 !marketplaceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
                 throw NSError(
@@ -471,31 +432,15 @@ extension ASRepository {
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
                 self.version = try container.decode(String.self, forKey: .version)
-                self.build = try container.decodeIfPresent(
-                    String.self,
-                    forKey: .build
-                )
-                self.date = try? container.decodeIfPresent(
-                    DateParsed.self,
-                    forKey: .date
-                )
-                self.localizedDescription =
-                    try container.decodeIfPresent(
-                        String.self,
-                        forKey: .localizedDescription
-                    )
-                self.downloadURL = try container.decodeIfPresent(
-                    URL.self,
-                    forKey: .downloadURL
-                )
+                self.build = container.lenientString(forKey: .build)
+                self.date = container.lenient(DateParsed.self, forKey: .date)
+                self.localizedDescription = container.lenientString(forKey: .localizedDescription)
+                self.downloadURL = container.lenientURL(forKey: .downloadURL)
                 self.size =
                     (try? container.decodeIfPresent(UInt.self, forKey: .size))
                     ?? (try? container.decodeIfPresent(String.self, forKey: .size))
                     .flatMap { UInt($0) }
-                self.minOSVersion = try container.decodeIfPresent(
-                    OSVersion.self,
-                    forKey: .minOSVersion
-                )
+                self.minOSVersion = container.lenient(OSVersion.self, forKey: .minOSVersion)
             }
 
             static public func < (lhs: Self, rhs: Self) -> Bool {
@@ -531,16 +476,17 @@ extension ASRepository {
             self.id = try container.decode(String.self, forKey: .id)
             self.title = try container.decode(String.self, forKey: .title)
             self.caption = try container.decode(String.self, forKey: .caption)
-            self.tintColor = try container.decodeIfPresent(
-                Color.self,
-                forKey: .tintColor
-            )
-            self.imageURL = try container.decodeIfPresent(URL.self, forKey: .imageURL)
-            self.url = try container.decodeIfPresent(URL.self, forKey: .url)
-            self.appID = try container.decodeIfPresent(App.ID.self, forKey: .appID)
-            self.date = try container.decodeIfPresent(DateParsed.self, forKey: .date)
-            self.notify =
-                try container.decodeIfPresent(Bool.self, forKey: .notify) ?? false
+            // Ofuq: a malformed date or link (apps.altstore.io had "T015:00") no longer rejects the source.
+            self.tintColor = container.lenient(Color.self, forKey: .tintColor)
+            self.imageURL = container.lenientURL(forKey: .imageURL)
+            self.url = container.lenientURL(forKey: .url)
+            if let appID = container.lenientString(forKey: .appID) {
+                self.appID = appID
+            } else {
+                self.appID = nil
+            }
+            self.date = container.lenient(DateParsed.self, forKey: .date)
+            self.notify = container.lenient(Bool.self, forKey: .notify) ?? false
         }
 
         public enum CodingKeys: String, CodingKey {

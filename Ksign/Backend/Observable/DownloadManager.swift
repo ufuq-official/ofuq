@@ -228,8 +228,9 @@ class DownloadManager: NSObject, ObservableObject {
         download.task?.cancel()
     }
 
+	/// Downloads and imports the user started (Import from Files / URL, an .ipa shared to Ofuq), shown at the top.
 	func isManualDownload(_ string: String) -> Bool {
-		return string.contains("FeatherManualDownload")
+		return string.contains("FeatherManualDownload") || string.hasPrefix("OfuqShared_")
 	}
 
 	func getDownload(by id: String) -> Download? {

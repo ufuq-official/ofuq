@@ -73,11 +73,13 @@ struct FeatherApp: App {
 				let downloadURL = URL(string: fullPath)
 			{
 				_ = DownloadManager.shared.startDownload(from: downloadURL, id: "FeatherManualDownload_\(UUID().uuidString)")
+				// The app goes to the Library: show it there.
+				StoreInstaller.shared.showLibrary()
 			}
 		} else {
 			let fileExtension = url.pathExtension.lowercased()
 			if fileExtension == "ipa" || fileExtension == "tipa" {
-				// Shared from Files, Telegram, AirDrop, ...: imported into the Library (progress at the top),
+				// Shared from Files, Telegram, AirDrop, ...: the Library opens and shows the import, the app is
 				// signed with the selected certificate, then the install prompt opens — like Install in the store.
 				StoreInstaller.shared.installFile(url)
 				return
@@ -154,6 +156,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             let dataLoader: DataLoader = {
                 let config = URLSessionConfiguration.default
                 config.urlCache = nil
+                // A slow icon server gives up after 15 s instead of a minute, so it no longer
+                // holds a loading slot while the other icons wait.
+                config.timeoutIntervalForRequest = 15
+                config.httpMaximumConnectionsPerHost = 8
                 return DataLoader(configuration: config)
             }()
             let dataCache = try? DataCache(name: "thewonderofyou.Feather.datacache") // disk cache
@@ -163,8 +169,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             $0.dataCache = dataCache
             $0.imageCache = imageCache
             $0.dataLoader = dataLoader
-            $0.dataCachePolicy = .automatic
+            // Icons are shown resized (see IconImages.swift): keep both the original file and the
+            // small icon on disk, so the next launch reads the small one straight away.
+            $0.dataCachePolicy = .storeAll
             $0.isStoringPreviewsInMemoryCache = false
+            // Store lists show many icons at once: load 12 at a time instead of 6.
+            $0.dataLoadingQueue.maxConcurrentOperationCount = 12
+            $0.imageDecodingQueue.maxConcurrentOperationCount = 2
+            $0.imageProcessingQueue.maxConcurrentOperationCount = 3
         }
         
         ImagePipeline.shared = pipeline

@@ -12,12 +12,15 @@ import NimbleViews
 // MARK: - View
 struct LibraryView: View {
 	@StateObject var downloadManager = DownloadManager.shared
-	
+	/// Apps being imported or signed for an install (shared to Ofuq, or Install in the store), and their install sheet.
+	@ObservedObject private var _installer = StoreInstaller.shared
+	/// Tells the installer this Library is on screen, see `StoreInstaller.libraryDidAppear`.
+	@State private var _visibilityToken = UUID()
+
 	@State private var _selectedInfoAppPresenting: AnyApp?
 	@State private var _selectedSigningAppPresenting: AnyApp?
 	@State private var _selectedInstallAppPresenting: AnyApp?
 	@State private var _selectedAppDylibsPresenting: AnyApp?
-	@State private var _selectedCloneAppPresenting: AnyApp?
 	@State private var _isBulkSigningPresenting = false
     @State private var _isBulkInstallingPresenting = false
 	@State private var _isImportingPresenting = false
@@ -66,6 +69,10 @@ struct LibraryView: View {
 	private var _filteredImportedApps: [Imported] {
 		filteredAndSortedApps(from: _importedApps)
 	}
+
+	private var _hasWorkInProgress: Bool {
+		!downloadManager.downloads.isEmpty || !_installer.signingApps.isEmpty
+	}
 	
 	// MARK: Fetch
 	@FetchRequest(
@@ -93,6 +100,23 @@ struct LibraryView: View {
 				.padding(.vertical, 8)
 				
 				NBListAdaptable {
+					if _hasWorkInProgress {
+						NBSection(.localized("In Progress")) {
+							ForEach(downloadManager.downloads) { download in
+								DownloadItemView(download: download)
+							}
+							ForEach(_installer.signingApps) { item in
+								HStack(spacing: 10) {
+									ProgressView()
+									Text(verbatim: String.localized("Signing %@…", arguments: item.name))
+										.font(.subheadline)
+										.lineLimit(1)
+								}
+								.padding(.vertical, 4)
+							}
+						}
+					}
+
 					if _selectedTab == 0 {
 						NBSection(
 							.localized("Downloaded Apps"),
@@ -105,7 +129,6 @@ struct LibraryView: View {
 									selectedSigningAppPresenting: $_selectedSigningAppPresenting,
 									selectedInstallAppPresenting: $_selectedInstallAppPresenting,
 									selectedAppDylibsPresenting: $_selectedAppDylibsPresenting,
-									selectedCloneAppPresenting: $_selectedCloneAppPresenting,
 									selectedApps: $_selectedApps
 								)
 								.compatMatchedTransitionSource(id: app.uuid ?? "", ns: _namespace)
@@ -123,7 +146,6 @@ struct LibraryView: View {
 									selectedSigningAppPresenting: $_selectedSigningAppPresenting,
 									selectedInstallAppPresenting: $_selectedInstallAppPresenting,
 									selectedAppDylibsPresenting: $_selectedAppDylibsPresenting,
-									selectedCloneAppPresenting: $_selectedCloneAppPresenting,
 									selectedApps: $_selectedApps
 								)
 								.compatMatchedTransitionSource(id: app.uuid ?? "", ns: _namespace)
@@ -136,7 +158,8 @@ struct LibraryView: View {
             .overlay {
                 if
                     _filteredSignedApps.isEmpty,
-                    _filteredImportedApps.isEmpty
+                    _filteredImportedApps.isEmpty,
+                    !_hasWorkInProgress
                 {
                     if #available(iOS 17, *) {
                         ContentUnavailableView {
@@ -210,12 +233,32 @@ struct LibraryView: View {
 				InstallPreviewView(app: app.base, isSharing: app.archive)
 					.presentationDetents([.height(200)])
 					.presentationDragIndicator(.visible)			}
+			.sheet(item: $_installer.libraryInstallTarget) { app in
+				InstallPreviewView(app: app.base)
+					.presentationDetents([.height(200)])
+					.presentationDragIndicator(.visible)
+			}
+			.onChange(of: _installer.libraryInstallTarget?.base.uuid) { uuid in
+				guard uuid != nil else { return }
+				// The signed app is installing: show it in Signed Apps.
+				_selectedTab = 1
+				// Only one sheet can be open: close the Library's other sheet, then show the install.
+				if
+					_selectedInfoAppPresenting != nil
+					|| _selectedInstallAppPresenting != nil
+					|| _isBulkInstallingPresenting
+					|| _isImportingPresenting
+				{
+					_selectedInfoAppPresenting = nil
+					_selectedInstallAppPresenting = nil
+					_isBulkInstallingPresenting = false
+					_isImportingPresenting = false
+					_installer.retryLibraryInstall()
+				}
+			}
 			.fullScreenCover(item: $_selectedSigningAppPresenting) { app in
 				SigningView(app: app.base, signAndInstall: app.signAndInstall)
 					.compatNavigationTransition(id: app.base.uuid ?? "", ns: _namespace)
-			}
-			.sheet(item: $_selectedCloneAppPresenting) { app in
-				CloneAppView(app: app.base)
 			}
 			.fullScreenCover(item: $_selectedAppDylibsPresenting) { app in
                 DylibsView(app: app.base)
@@ -275,6 +318,12 @@ struct LibraryView: View {
 				}
 			}
         }
+		.onAppear {
+			_installer.libraryDidAppear(_visibilityToken)
+		}
+		.onDisappear {
+			_installer.libraryDidDisappear(_visibilityToken)
+		}
         .onChange(of: _isEditMode) { state in
             if !state.isEditing {
                 DispatchQueue.main.asyncAfter(deadline: .now()) {

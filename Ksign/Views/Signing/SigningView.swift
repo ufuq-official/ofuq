@@ -24,7 +24,8 @@ struct SigningView: View {
 	@State private var _isLogsPresenting = false
 	@State private var _isSigning = false
 	@State private var _selectedPhoto: PhotosPickerItem? = nil
-	/// Set when the selected certificate only allows one app ID; the app is signed with that ID.
+	/// Set when the selected certificate only allows one app ID. The identifier field still shows the app's
+	/// own identifier (it can be edited); left as it is, the app is signed with the certificate's ID.
 	@State private var _lockedIdentifier: String?
 	@State var appIcon: UIImage?
 	
@@ -54,16 +55,10 @@ struct SigningView: View {
 		return appID.split(separator: ".").dropFirst().joined(separator: ".")
 	}
 
-	/// Shows the bundle ID the app will really get when the certificate only allows one app ID
-	/// (SigningHandler enforces it either way), and undoes that when another certificate is picked.
+	/// Notes whether the certificate only allows one app ID, for the note under the certificate.
+	/// The identifier field is not changed: it shows the app's original identifier, so it can be edited.
 	private func _applyCertificateAppID() {
-		let appID = _selectedCert().flatMap { CertificateCheck.explicitAppID(for: $0) }
-		if let appID {
-			_temporaryOptions.appIdentifier = appID
-		} else if let locked = _lockedIdentifier, _temporaryOptions.appIdentifier == locked {
-			_temporaryOptions.appIdentifier = nil
-		}
-		_lockedIdentifier = appID
+		_lockedIdentifier = _selectedCert().flatMap { CertificateCheck.explicitAppID(for: $0) }
 	}
 
 	var app: AppInfoPresentable
@@ -144,8 +139,13 @@ struct SigningView: View {
 			}
 		}
 		.onAppear {
+			// With a certificate that only allows one app ID, any automatic identifier would be refused
+			// by iOS: the field keeps the original identifier and signing uses the certificate's ID.
+			let allowsAnyIdentifier = _selectedCert().flatMap { CertificateCheck.explicitAppID(for: $0) } == nil
+
 			// ppq protection
 			if
+				allowsAnyIdentifier,
 				_optionsManager.options.ppqProtection,
 				let identifier = app.identifier,
 				let cert = _selectedCert(),
@@ -155,6 +155,7 @@ struct SigningView: View {
 			}
 			
 			if
+				allowsAnyIdentifier,
 				let currentBundleId = app.identifier,
 				let newBundleId = _temporaryOptions.identifiers[currentBundleId]
 			{
@@ -250,7 +251,12 @@ extension SigningView {
 			}
 		} footer: {
 			if let appID = _lockedIdentifier {
-				Text(verbatim: .localized("This certificate only allows the app ID %@. The app is signed with it and its extensions are removed, because the certificate cannot cover them. Installing another app with this certificate replaces this one.", arguments: appID))
+				if let typed = _temporaryOptions.appIdentifier, typed != appID, typed != app.identifier {
+					Text(verbatim: .localized("This certificate only allows the app ID %@. iOS will refuse to install the app with the identifier you entered. To install it, tap Identifier > Matching Certificate's App ID.", arguments: appID))
+						.foregroundStyle(.orange)
+				} else {
+					Text(verbatim: .localized("This certificate only allows the app ID %@. The app is signed with it and its extensions are removed, because the certificate cannot cover them. Installing another app with this certificate replaces this one.", arguments: appID))
+				}
 			}
 		}
 	}

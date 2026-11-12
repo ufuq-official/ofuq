@@ -22,7 +22,6 @@ struct LibraryCellView: View {
 	@Binding var selectedSigningAppPresenting: AnyApp?
 	@Binding var selectedInstallAppPresenting: AnyApp?
 	@Binding var selectedAppDylibsPresenting: AnyApp?
-	@Binding var selectedCloneAppPresenting: AnyApp?
 	@Binding var selectedApps: Set<String>
 	@State private var _showActionSheet = false
 	@ObservedObject private var _favorites = LibraryFavorites.shared
@@ -191,18 +190,12 @@ extension LibraryCellView {
 			Button(.localized("Re-sign"), systemImage: "signature") {
 				selectedSigningAppPresenting = AnyApp(base: app)
 			}
-			Button(.localized("Clone"), systemImage: "plus.square.on.square") {
-				selectedCloneAppPresenting = AnyApp(base: app)
-			}
 			Button(.localized("Export"), systemImage: "square.and.arrow.up") {
 				selectedInstallAppPresenting = AnyApp(base: app, archive: true)
 			}
 		} else {
 			Button(.localized("Install"), systemImage: "square.and.arrow.down") {
 				selectedInstallAppPresenting = AnyApp(base: app)
-			}
-			Button(.localized("Clone"), systemImage: "plus.square.on.square") {
-				selectedCloneAppPresenting = AnyApp(base: app)
 			}
 		}
 	}
@@ -223,10 +216,6 @@ extension LibraryCellView {
 			Button(.localized("Re-sign")) {
 				selectedSigningAppPresenting = AnyApp(base: app)
 			}
-
-			Button(.localized("Clone")) {
-				selectedCloneAppPresenting = AnyApp(base: app)
-			}
 			
 			Button(.localized("Export")) {
 				selectedInstallAppPresenting = AnyApp(base: app, archive: true)
@@ -238,10 +227,6 @@ extension LibraryCellView {
 			
 			Button(.localized("Sign")) {
 				selectedSigningAppPresenting = AnyApp(base: app)
-			}
-
-			Button(.localized("Clone")) {
-				selectedCloneAppPresenting = AnyApp(base: app)
 			}
 			
 			Button(.localized("Export")) {
