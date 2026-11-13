@@ -50,6 +50,10 @@ class Download: Identifiable, @unchecked Sendable, ObservableObject {
 	var restartedFresh = false
 	/// Sends a Safari user agent: some hosts refuse (403) downloads that do not look like a browser.
 	var usesBrowserUserAgent = false
+	/// Ofuq: the download over several connections, while it runs (see SegmentedTransfer).
+	var transfer: SegmentedTransfer?
+	/// Set while asking the server whether the file can be downloaded in parts.
+	var isProbing = false
 
 	let id: String
 	let url: URL
@@ -165,11 +169,8 @@ class DownloadManager: NSObject, ObservableObject {
         }
 		let download = Download(id: id, url: url)
 
-        let task = _session.downloadTask(with: url)
-        download.task = task
-        task.resume()
-
         downloads.append(download)
+		_begin(download)
 		if #available(iOS 26.0, *) {
 			BackgroundTaskManager.shared.startTask(for: id, filename: url.lastPathComponent)
 		} else {
@@ -190,7 +191,7 @@ class DownloadManager: NSObject, ObservableObject {
 
     func resumeDownload(_ download: Download) {
 		// Already downloading (for example a second tap on the same app): a new task would download it twice.
-		if download.task?.state == .running {
+		if download.isProbing || download.transfer != nil || download.task?.state == .running {
 			return
 		}
 		_restart(download)
@@ -216,6 +217,80 @@ class DownloadManager: NSObject, ObservableObject {
 		task.resume()
 	}
 
+	// MARK: Several connections
+
+	/// Big files from servers that allow it are downloaded over several connections at once
+	/// (see SegmentedTransfer), the rest over one, as before.
+	private func _begin(_ download: Download) {
+		guard ["http", "https"].contains(download.url.scheme?.lowercased() ?? "") else {
+			_restart(download)
+			return
+		}
+
+		download.isProbing = true
+		let url = download.url
+		let userAgent = download.usesBrowserUserAgent ? Self.browserUserAgent : nil
+		Task.detached(priority: .userInitiated) { [weak self] in
+			let plan = await SegmentedTransfer.probe(url, userAgent: userAgent)
+			await MainActor.run {
+				download.isProbing = false
+				// Cancelled by the user meanwhile?
+				guard let self, self.getDownload(by: download.id) === download else { return }
+				if let plan {
+					self._startParts(download, plan: plan, userAgent: userAgent)
+				} else {
+					self._restart(download)
+				}
+			}
+		}
+	}
+
+	private func _startParts(_ download: Download, plan: SegmentedTransfer.Plan, userAgent: String?) {
+		let transfer = SegmentedTransfer(url: download.url, plan: plan, userAgent: userAgent)
+		download.transfer = transfer
+		download.totalBytes = plan.total
+
+		transfer.onProgress = { [weak download] received, total in
+			DispatchQueue.main.async {
+				guard let download else { return }
+				download.progress = Double(received) / Double(max(total, 1))
+				download.bytesDownloaded = received
+				download.totalBytes = total
+				if #available(iOS 26.0, *) {
+					BackgroundTaskManager.shared.updateProgress(for: download.id, progress: download.overallProgress)
+				}
+			}
+		}
+
+		transfer.onFinish = { [weak self] result in
+			DispatchQueue.main.async {
+				guard let self, self.getDownload(by: download.id) === download, download.transfer === transfer else {
+					if case .success(let file) = result {
+						try? FileManager.default.removeItem(at: file)
+					}
+					return
+				}
+				download.transfer = nil
+
+				switch result {
+				case .success(let file):
+					let fileName = plan.suggestedFileName ?? download.fileName
+					DispatchQueue.global(qos: .userInitiated).async {
+						self._open(download, downloadedFile: file, fileName: fileName)
+					}
+				case .failure(let error):
+					// The usual download, over one connection, with its own retries and messages.
+					print("Download \(download.id) in parts stopped (\(error)), downloading it over one connection")
+					download.progress = 0
+					download.bytesDownloaded = 0
+					self._restart(download)
+				}
+			}
+		}
+
+		transfer.start()
+	}
+
     func cancelDownload(_ download: Download) {
 		// Leave the list first, so the "cancelled" error that follows is not taken for a network error.
         if let index = downloads.firstIndex(where: { $0.id == download.id }) {
@@ -226,6 +301,8 @@ class DownloadManager: NSObject, ObservableObject {
             }
         }
         download.task?.cancel()
+		download.transfer?.cancel()
+		download.transfer = nil
     }
 
 	/// Downloads and imports the user started (Import from Files / URL, an .ipa shared to Ofuq), shown at the top.
@@ -416,6 +493,16 @@ extension DownloadManager: URLSessionDownloadDelegate {
 			return
 		}
 
+		_open(
+			download,
+			downloadedFile: location,
+			fileName: downloadTask.response?.suggestedFilename ?? download.fileName
+		)
+	}
+
+	/// Moves a downloaded file to the downloads folder and imports it. Not on the main queue: the file is
+	/// moved straight away (the system deletes `location` of a download task when the delegate call returns).
+	private func _open(_ download: Download, downloadedFile location: URL, fileName: String) {
 		var downloadDir: URL
 		if !OptionsManager.shared.options.saveAppStoreDownloadsToDownloadsFolder {
 			let tempDirectory = FileManager.default.temporaryDirectory
@@ -426,8 +513,7 @@ extension DownloadManager: URLSessionDownloadDelegate {
 
 		do {
 			try FileManager.default.createDirectoryIfNeeded(at: downloadDir)
-			let suggestedFileName = downloadTask.response?.suggestedFilename ?? download.fileName
-			let destinationURL = downloadDir.appendingPathComponent(suggestedFileName)
+			let destinationURL = downloadDir.appendingPathComponent(fileName)
 			try FileManager.default.removeFileIfNeeded(at: destinationURL)
 			try FileManager.default.moveItem(at: location, to: destinationURL)
 			self.handlePachageFile(url: destinationURL, dl: download) { err in

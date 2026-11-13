@@ -75,13 +75,14 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 	}
 	
 	private func _Zip(download: Download?) throws {
+		let throttle = ProgressThrottle()
 		try Zip.unzipFile(
 			_ipa,
 			destination: _uniqueWorkDir,
 			overwrite: true,
 			password: nil,
 			progress: { progress in
-				if let download = download {
+				if let download = download, throttle.allows(progress) {
 					DispatchQueue.main.async {
 						download.unpackageProgress = progress
                         if #available(iOS 26.0, *) {
@@ -97,10 +98,11 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 		let archive = try Archive(url: _ipa, accessMode: .read)
 		let entries = Array(archive)
 		let totalEntries = max(entries.count, 1)
-		
+		let throttle = ProgressThrottle()
+
 		for (index, entry) in entries.enumerated() {
 			let progress = Double(index) / Double(totalEntries)
-			if let download = download {
+			if let download = download, throttle.allows(progress) {
 				DispatchQueue.main.async {
 					download.unpackageProgress = progress
                     if #available(iOS 26.0, *) {

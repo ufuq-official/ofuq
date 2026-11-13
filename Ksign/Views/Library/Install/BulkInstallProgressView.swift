@@ -86,7 +86,7 @@ struct BulkInstallProgressView: View {
                 let handler = await ArchiveHandler(app: app, viewModel: viewModel)
                 try await handler.move()
                 
-                let packageUrl = try await handler.archive()
+                let packageUrl = try await handler.archive(forInstall: true)
                 
                 if await _installationMethod == 0 {
                     if let startError = await installer.startError {

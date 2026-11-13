@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Builds banners/index.json, the pictures Ofuq shows at the top of the Today tab.
+"""Builds index.json of a pictures folder of Ofuq's Today tab.
 
-Every picture in the banners/ folder is listed, ordered by file name with numbers in order
-(1.jpg, 2.jpg … 10.jpg). banners/links.txt can give a picture a link that opens when it is tapped:
-one line per picture, the file name then the link ("1.jpg https://t.me/ofuq_store").
+  build_banners_index.py banners   the pictures at the top, shown one after the other (the default)
+  build_banners_index.py cards     the large pictures between the apps
+
+Every picture in the folder is listed, ordered by file name with numbers in order
+(1.jpg, 2.jpg … 10.jpg). links.txt in the folder can give a picture a link that opens when it is
+tapped: one line per picture, the file name then the link ("1.jpg https://t.me/ofuq_store").
 
 Each picture's link ends with ?v= and a short fingerprint of the file, so replacing a picture with
 a new one under the same name shows the new one in the app instead of the old cached one.
@@ -18,13 +21,17 @@ import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BANNERS = ROOT / "banners"
+FOLDERS = ("banners", "cards")
+FOLDER = sys.argv[1] if len(sys.argv) > 1 else "banners"
+if FOLDER not in FOLDERS:
+    sys.exit(f"unknown folder {FOLDER}, expected one of {', '.join(FOLDERS)}")
+BANNERS = ROOT / FOLDER
 INDEX = BANNERS / "index.json"
 LINKS = BANNERS / "links.txt"
 
 REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "ufuq-official/ofuq")
 BRANCH = os.environ.get("GITHUB_REF_NAME", "main")
-RAW_BASE = f"https://raw.githubusercontent.com/{REPOSITORY}/{BRANCH}/banners/"
+RAW_BASE = f"https://raw.githubusercontent.com/{REPOSITORY}/{BRANCH}/{FOLDER}/"
 
 PICTURES = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".gif"}
 # Bigger files make the Today tab slow to show on mobile data.
@@ -79,12 +86,12 @@ def main():
         banners.append(banner)
         print(f"ok: {path.name}" + (f" -> {links[path.name]}" if path.name in links else ""))
 
-    text = json.dumps({"banners": banners}, ensure_ascii=False, indent=2) + "\n"
+    text = json.dumps({FOLDER: banners}, ensure_ascii=False, indent=2) + "\n"
     if INDEX.exists() and INDEX.read_text(encoding="utf-8") == text:
-        print(f"index.json unchanged ({len(banners)} pictures)")
+        print(f"{FOLDER}/index.json unchanged ({len(banners)} pictures)")
         return 0
     INDEX.write_text(text, encoding="utf-8")
-    print(f"index.json written ({len(banners)} pictures)")
+    print(f"{FOLDER}/index.json written ({len(banners)} pictures)")
     return 0
 
 

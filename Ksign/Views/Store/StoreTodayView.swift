@@ -10,6 +10,8 @@ import CoreData
 
 struct StoreTodayView: View {
 	@ObservedObject private var _catalog = StoreCatalog.shared
+	/// Ofuq: large pictures between the apps, managed from GitHub (cards/ folder).
+	@ObservedObject private var _cards = StoreBanners.cards
 	@State private var _destination: StoreDestination?
 
 	@FetchRequest(
@@ -39,11 +41,15 @@ struct StoreTodayView: View {
 			}
 			.refreshable {
 				async let banners: Void = StoreBanners.shared.refresh(force: true)
+				async let cards: Void = StoreBanners.cards.refresh(force: true)
 				await _catalog.refresh(_sources)
 				await banners
+				await cards
 			}
 			.task {
-				await StoreBanners.shared.refresh()
+				async let banners: Void = StoreBanners.shared.refresh()
+				await StoreBanners.cards.refresh()
+				await banners
 			}
 			.toolbar(.hidden, for: .navigationBar)
 			.navigationDestination(for: StoreApp.self) { item in
@@ -79,8 +85,12 @@ struct StoreTodayView: View {
 	@ViewBuilder
 	private var _content: some View {
 		let stories = _catalog.todayStories
+		let cards = _cards.items
 
 		if stories.isEmpty {
+			ForEach(cards) { card in
+				StorePictureCard(banner: card)
+			}
 			_placeholder
 		} else {
 			ForEach(Array(stories.enumerated()), id: \.element.id) { index, item in
@@ -88,6 +98,11 @@ struct StoreTodayView: View {
 					StoreFeatureCard(item: item)
 				}
 				.buttonStyle(StoreCardButtonStyle())
+
+				// A picture after the 1st, 4th, 7th… app card.
+				if index % 3 == 0, index / 3 < cards.count {
+					StorePictureCard(banner: cards[index / 3])
+				}
 
 				if index == 1 {
 					_listCard(
@@ -115,6 +130,11 @@ struct StoreTodayView: View {
 						items: Array(_catalog.items(for: .topApps).prefix(4))
 					)
 				}
+			}
+
+			// The pictures left after the last app card.
+			ForEach(Array(cards.dropFirst((stories.count + 2) / 3))) { card in
+				StorePictureCard(banner: card)
 			}
 		}
 	}

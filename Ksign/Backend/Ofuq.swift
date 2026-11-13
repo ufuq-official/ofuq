@@ -25,4 +25,6 @@ enum Ofuq {
 	/// The pictures at the top of the Today tab: the `banners/` folder of the Ofuq repository, listed by
 	/// a GitHub Action in this file (see banners/README.md).
 	static let bannersIndex = "https://raw.githubusercontent.com/ufuq-official/ofuq/main/banners/index.json"
+	/// The large pictures between the apps of the Today tab: the `cards/` folder (see cards/README.md).
+	static let cardsIndex = "https://raw.githubusercontent.com/ufuq-official/ofuq/main/cards/index.json"
 }

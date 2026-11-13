@@ -2,11 +2,13 @@
 //  StoreBanners.swift
 //  Ofuq
 //
-//  The pictures at the top of the Today tab, shown one after the other. They are managed from GitHub:
-//  the `banners/` folder of the Ofuq repository, listed by a GitHub Action in `banners/index.json`
-//  (see banners/README.md). The last list is kept on the iPhone, so the pictures show at once and
-//  offline. It is read again when the Today tab opens (at most every few minutes) and when it is pulled
-//  down. Without pictures in the folder, nothing is shown.
+//  The pictures of the Today tab, managed from GitHub:
+//  - `banners/`: at the top, shown one after the other (StoreBannerCarousel);
+//  - `cards/`: large pictures between the apps (StorePictureCard).
+//  Each folder is listed by a GitHub Action in its `index.json` (see the README of each folder). The last
+//  list is kept on the iPhone, so the pictures show at once and offline. It is read again when the Today
+//  tab opens (at most every few minutes) and when it is pulled down. Without pictures in a folder,
+//  nothing of it is shown.
 //
 
 import SwiftUI
@@ -22,7 +24,10 @@ struct StoreBanner: Hashable, Identifiable {
 }
 
 final class StoreBanners: ObservableObject {
-	static let shared = StoreBanners()
+	/// The pictures at the top (banners/ folder).
+	static let shared = StoreBanners(index: Ofuq.bannersIndex, file: "OfuqBanners.json")
+	/// The large pictures between the apps (cards/ folder).
+	static let cards = StoreBanners(index: Ofuq.cardsIndex, file: "OfuqCards.json")
 
 	@Published private(set) var items: [StoreBanner] = []
 
@@ -32,12 +37,12 @@ final class StoreBanners: ObservableObject {
 			let link: String?
 		}
 
-		let banners: [Entry]
+		let banners: [Entry]?
+		let cards: [Entry]?
 	}
 
-	private static let _file: URL = FileManager.default
-		.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-		.appendingPathComponent("OfuqBanners.json")
+	private let _index: String
+	private let _file: URL
 
 	private static let _prefetcher = ImagePrefetcher(
 		pipeline: .shared,
@@ -51,8 +56,12 @@ final class StoreBanners: ObservableObject {
 	private var _isRefreshing = false
 	private var _lastRefresh: Date?
 
-	private init() {
-		if let data = try? Data(contentsOf: Self._file), let items = Self._parse(data) {
+	private init(index: String, file: String) {
+		self._index = index
+		self._file = FileManager.default
+			.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+			.appendingPathComponent(file)
+		if let data = try? Data(contentsOf: _file), let items = Self._parse(data) {
 			self.items = items
 		}
 	}
@@ -69,7 +78,7 @@ final class StoreBanners: ObservableObject {
 		if !force, let last = _lastRefresh, Date().timeIntervalSince(last) < Self._freshness {
 			return
 		}
-		guard !_isRefreshing, let url = URL(string: Ofuq.bannersIndex) else { return }
+		guard !_isRefreshing, let url = URL(string: _index) else { return }
 		_isRefreshing = true
 		defer { _isRefreshing = false }
 
@@ -85,7 +94,7 @@ final class StoreBanners: ObservableObject {
 		}
 
 		_lastRefresh = Date()
-		try? reply.0.write(to: Self._file, options: .atomic)
+		try? reply.0.write(to: _file, options: .atomic)
 		Self._prefetcher.startPrefetching(with: items.map { Self.request(for: $0.image) })
 
 		if items != self.items {
@@ -98,7 +107,7 @@ final class StoreBanners: ObservableObject {
 	private static func _parse(_ data: Data) -> [StoreBanner]? {
 		guard let index = try? JSONDecoder().decode(_Index.self, from: data) else { return nil }
 		var seen = Set<URL>()
-		return index.banners.compactMap { entry in
+		return (index.banners ?? index.cards ?? []).compactMap { entry in
 			guard
 				let image = entry.image.flatMap({ URL(string: $0) }),
 				let scheme = image.scheme?.lowercased(),
@@ -163,19 +172,20 @@ struct StoreBannerCarousel: View {
 
 	@ViewBuilder
 	private func _page(_ banner: StoreBanner) -> some View {
-		let picture = LazyImage(request: StoreBanners.request(for: banner.image)) { state in
-			if let image = state.image {
-				image
-					.resizable()
-					.scaledToFill()
-			} else {
-				Rectangle()
-					.fill(Color(uiColor: .secondarySystemFill))
+		// Laid over the page, so a picture of another shape fills it (its edges are cut).
+		let picture = Color(uiColor: .secondarySystemFill)
+			.frame(maxWidth: .infinity, maxHeight: .infinity)
+			.overlay {
+				LazyImage(request: StoreBanners.request(for: banner.image)) { state in
+					if let image = state.image {
+						image
+							.resizable()
+							.scaledToFill()
+					}
+				}
 			}
-		}
-		.frame(maxWidth: .infinity, maxHeight: .infinity)
-		.clipped()
-		.contentShape(Rectangle())
+			.clipped()
+			.contentShape(Rectangle())
 
 		if let link = banner.link {
 			Button {
@@ -195,5 +205,45 @@ struct StoreBannerCarousel: View {
 		withAnimation(.easeInOut(duration: 0.45)) {
 			_selection = (_selection + 1) % count
 		}
+	}
+}
+
+/// A large picture between the apps of the Today tab (cards/ folder): the size and look of the app cards,
+/// without the app. Tapping it opens its link, if it has one.
+struct StorePictureCard: View {
+	let banner: StoreBanner
+	var height: CGFloat = 440
+
+	var body: some View {
+		if let link = banner.link {
+			Button {
+				UIApplication.open(link)
+			} label: {
+				_card
+			}
+			.buttonStyle(StoreCardButtonStyle())
+		} else {
+			_card
+		}
+	}
+
+	private var _card: some View {
+		// The picture is laid over a frame of the card's size, so a picture of another shape fills the card
+		// (its edges are cut) instead of changing the card's size.
+		Color(uiColor: .secondarySystemFill)
+			.frame(maxWidth: .infinity)
+			.frame(height: height)
+			.overlay {
+				LazyImage(request: StoreBanners.request(for: banner.image)) { state in
+					if let image = state.image {
+						image
+							.resizable()
+							.scaledToFill()
+					}
+				}
+			}
+			.clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+			.contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+			.shadow(color: .black.opacity(0.28), radius: 20, x: 0, y: 10)
 	}
 }

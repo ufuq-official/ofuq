@@ -1,13 +1,15 @@
-name: Update banners list
+name: Update pictures lists
 
-# Every time a picture is added, changed or deleted in the banners/ folder, this rebuilds
-# banners/index.json, the list of pictures the Today tab of Ofuq shows. See banners/README.md.
+# Every time a picture is added, changed or deleted in the banners/ or cards/ folder, this rebuilds
+# its index.json, the list of pictures the Today tab of Ofuq shows. See banners/README.md and
+# cards/README.md.
 on:
   workflow_dispatch:
   push:
     branches: [ "main" ]
     paths:
       - "banners/**"
+      - "cards/**"
       - ".github/scripts/build_banners_index.py"
       - ".github/workflows/banners-index.yml"
 
@@ -20,7 +22,7 @@ permissions:
 
 jobs:
   index:
-    name: Build banners/index.json
+    name: Build banners/index.json and cards/index.json
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -28,19 +30,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build the list
-        run: python3 .github/scripts/build_banners_index.py
-
-      - name: Save the list
+      - name: Build the lists
         run: |
-          if git diff --quiet -- banners/index.json && git ls-files --error-unmatch banners/index.json >/dev/null 2>&1; then
-            echo "The list did not change."
+          python3 .github/scripts/build_banners_index.py banners
+          python3 .github/scripts/build_banners_index.py cards
+
+      - name: Save the lists
+        run: |
+          git add banners/index.json cards/index.json
+          if git diff --cached --quiet; then
+            echo "The lists did not change."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add banners/index.json
-          git commit -m "Update banners/index.json"
+          git commit -m "Update pictures lists"
           # Someone may have pushed meanwhile.
           git pull --rebase --autostash
           git push

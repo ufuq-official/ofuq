@@ -44,22 +44,27 @@ final class ArchiveHandler: NSObject {
 		_payloadUrl = payloadUrl
 	}
 	
-	func archive() async throws -> URL {
+	/// - Parameter forInstall: Ofuq: the package only goes to this iPhone, so it is not compressed: compressing
+	///   takes most of the time between signing and installing, for nothing. Shared and saved packages
+	///   use the compression level from the settings.
+	func archive(forInstall: Bool = false) async throws -> URL {
 		return try await Task.detached(priority: .userInitiated) { [self] in
 			guard let payloadUrl = await self._payloadUrl else {
 				throw SigningFileHandlerError.appNotFound
 			}
-			
+
 			let zipUrl = self._uniqueWorkDir.appendingPathComponent("Archive.zip")
 			let ipaUrl = self._uniqueWorkDir.appendingPathComponent("Archive.ipa")
-			
+			let compression: ZipCompression = forInstall ? .NoCompression : ArchiveHandler.compression()
+			let throttle = ProgressThrottle()
+
 			try await Zip.zipFiles(
 				paths: [payloadUrl],
 				zipFilePath: zipUrl,
 				password: nil,
-				compression: ZipCompression.allCases[ArchiveHandler.getCompressionLevel()],
+				compression: compression,
 				progress: { progress in
-					
+					guard throttle.allows(progress) else { return }
 					Task { @MainActor in
 						self.viewModel.packageProgress = progress
 					}
@@ -101,5 +106,11 @@ final class ArchiveHandler: NSObject {
 
 	static func getCompressionLevel() -> Int {
 		UserDefaults.standard.integer(forKey: "Feather.compressionLevel")
+	}
+
+	/// The level from the settings; a value out of range no longer crashes.
+	static func compression() -> ZipCompression {
+		let levels = ZipCompression.allCases
+		return levels[min(max(getCompressionLevel(), 0), levels.count - 1)]
 	}
 }
