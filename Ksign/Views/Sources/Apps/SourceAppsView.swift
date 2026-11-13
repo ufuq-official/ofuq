@@ -75,6 +75,8 @@ struct SourceAppsView: View {
                     onSelect: {self._selectedRoute = $0}
                 )
                 .ignoresSafeArea()
+            } else if viewModel.isFinished, let failure = _failure {
+                _failedView(failure)
             } else {
                 if #available(iOS 17, *) {
                     ContentUnavailableView {
@@ -155,6 +157,9 @@ struct SourceAppsView: View {
         .onChange(of: viewModel.isFinished) { _ in
             _load()
         }
+        .onReceive(viewModel.$sources) { all in
+            _showReady(all)
+        }
         .onChange(of: _sortOption) { newValue in
             _sortOptionRawValue = newValue.rawValue
         }
@@ -175,7 +180,43 @@ struct SourceAppsView: View {
             }
         }
     }
-    
+
+    /// Ofuq: a source is shown as soon as it is ready. Before, the screen waited for every source to
+    /// finish loading, so a big source (17,000 apps) stayed on "Fetching..." while the others loaded.
+    private func _showReady(_ all: [AltSource: ASRepository]) {
+        let ready = object.compactMap { all[$0] }
+        guard !ready.isEmpty, ready.count != (_sources?.count ?? 0) else { return }
+        _sources = ready
+        isLoading = false
+    }
+
+    /// Why the source could not be loaded, when none of the sources of this screen is loaded.
+    private var _failure: String? {
+        object.lazy.compactMap { viewModel.failures[$0] }.first
+    }
+
+    private func _failedView(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+            Text(.localized("Could Not Load the Source"))
+                .font(.headline)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button(.localized("Try Again")) {
+                Task {
+                    await viewModel.fetch(object, refresh: true)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.top, 4)
+        }
+        .padding(32)
+    }
+
     struct SourceAppRoute: Identifiable, Hashable {
         let source: ASRepository
         let app: ASRepository.App

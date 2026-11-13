@@ -1,0 +1,46 @@
+name: Update banners list
+
+# Every time a picture is added, changed or deleted in the banners/ folder, this rebuilds
+# banners/index.json, the list of pictures the Today tab of Ofuq shows. See banners/README.md.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "banners/**"
+      - ".github/scripts/build_banners_index.py"
+      - ".github/workflows/banners-index.yml"
+
+concurrency:
+  group: banners-index
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  index:
+    name: Build banners/index.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build the list
+        run: python3 .github/scripts/build_banners_index.py
+
+      - name: Save the list
+        run: |
+          if git diff --quiet -- banners/index.json && git ls-files --error-unmatch banners/index.json >/dev/null 2>&1; then
+            echo "The list did not change."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add banners/index.json
+          git commit -m "Update banners/index.json"
+          # Someone may have pushed meanwhile.
+          git pull --rebase --autostash
+          git push

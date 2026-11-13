@@ -26,6 +26,8 @@ final class SourcesViewModel: ObservableObject {
 	/// False while sources are loading.
 	@Published private(set) var isFinished = true
 	@Published var sources: [AltSource: ASRepository] = [:]
+	/// Why a source that is not on screen could not be loaded (its last download failed).
+	@Published private(set) var failures: [AltSource: String] = [:]
 
 	/// When the app opens, a source checked with its server less than this long ago is only read from the cache.
 	static let freshness: TimeInterval = 30 * 60
@@ -141,6 +143,9 @@ final class SourcesViewModel: ObservableObject {
 			if kept.count != self.sources.count {
 				self.sources = kept
 			}
+			if self.failures.keys.contains(where: { !current.contains($0) }) {
+				self.failures = self.failures.filter { current.contains($0.key) }
+			}
 			return items.filter { self.sources[$0.source] == nil }
 		}
 
@@ -150,6 +155,7 @@ final class SourcesViewModel: ObservableObject {
 			await MainActor.run {
 				if self.sources[item.source] == nil {
 					self.sources[item.source] = repository
+					self.failures[item.source] = nil
 					Self._fillDetails(of: item.source, from: repository)
 					Self._prefetchFirstIcons(of: repository)
 				}
@@ -171,12 +177,20 @@ final class SourcesViewModel: ObservableObject {
 			let result = await SourceCache.fetch(url: job.item.url, conditional: job.conditional)
 			guard case .updated(let repository) = result else {
 				// Not modified, or failed: whatever is on screen (the cached copy) stays.
+				if case .failed(let error) = result {
+					await MainActor.run {
+						if self.sources[job.item.source] == nil {
+							self.failures[job.item.source] = error.localizedDescription
+						}
+					}
+				}
 				return
 			}
 			await MainActor.run {
 				// The source may have been removed while it downloaded.
 				guard !job.item.source.isDeleted, job.item.source.managedObjectContext != nil else { return }
 				self.sources[job.item.source] = repository
+				self.failures[job.item.source] = nil
 				Self._fillDetails(of: job.item.source, from: repository)
 				Self._prefetchFirstIcons(of: repository)
 			}

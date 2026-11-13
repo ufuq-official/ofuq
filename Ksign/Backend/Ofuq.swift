@@ -21,4 +21,8 @@ enum Ofuq {
 	/// The sources managed from GitHub: the `sources/` folder of the Ofuq repository. A GitHub Action
 	/// lists its JSON files and the links of `sources/links.txt` in this file (see sources/README.md).
 	static let remoteSourcesIndex = "https://raw.githubusercontent.com/ufuq-official/ofuq/main/sources/index.json"
+
+	/// The pictures at the top of the Today tab: the `banners/` folder of the Ofuq repository, listed by
+	/// a GitHub Action in this file (see banners/README.md).
+	static let bannersIndex = "https://raw.githubusercontent.com/ufuq-official/ofuq/main/banners/index.json"
 }

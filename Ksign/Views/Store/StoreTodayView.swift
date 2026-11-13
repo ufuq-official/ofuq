@@ -28,6 +28,8 @@ struct StoreTodayView: View {
 			ScrollView {
 				LazyVStack(alignment: .leading, spacing: 26) {
 					_header
+					// Ofuq: pictures managed from GitHub (banners/ folder), hidden when there are none.
+					StoreBannerCarousel()
 					_content
 				}
 				.padding(.horizontal, 20)
@@ -36,7 +38,12 @@ struct StoreTodayView: View {
 				.frame(maxWidth: .infinity)
 			}
 			.refreshable {
+				async let banners: Void = StoreBanners.shared.refresh(force: true)
 				await _catalog.refresh(_sources)
+				await banners
+			}
+			.task {
+				await StoreBanners.shared.refresh()
 			}
 			.toolbar(.hidden, for: .navigationBar)
 			.navigationDestination(for: StoreApp.self) { item in

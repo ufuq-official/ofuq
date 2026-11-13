@@ -127,8 +127,19 @@ enum SourceCache {
 		return Date().timeIntervalSince(meta.fetchedAt) < maxAge
 	}
 
+	/// Sources at least this big are decoded one at a time.
+	private static let _largeSourceSize = 8 * 1024 * 1024
+	private static let _largeSourceLock = NSLock()
+
 	static func decode(_ data: Data) -> ASRepository? {
-		try? JSONDecoder().decode(ASRepository.self, from: data)
+		// Decoding takes several times the file's size in memory: two or three huge sources (one has 17,000
+		// apps, 23 MB) decoded together could make iOS close the app. Small sources never wait.
+		guard data.count >= _largeSourceSize else {
+			return try? JSONDecoder().decode(ASRepository.self, from: data)
+		}
+		_largeSourceLock.lock()
+		defer { _largeSourceLock.unlock() }
+		return try? JSONDecoder().decode(ASRepository.self, from: data)
 	}
 
 	// MARK: Write

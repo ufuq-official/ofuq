@@ -635,17 +635,26 @@ public struct DateParsed: Codable, Equatable, Hashable, Comparable, Sendable {
             )
         }
         
-        // timestamp (e.g., 1699999999.0)
-        if let timestamp = try? container.decode(Double.self) {
+        // Ofuq: text first, as almost every source writes dates as text, and the usual ISO 8601 forms are
+        // read directly. A source with 17,000 apps has 34,000 dates: trying the formatters below one after
+        // the other for each of them took seconds.
+        let dateString: String
+        if let text = try? container.decode(String.self) {
+            dateString = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            // timestamp (e.g., 1699999999.0)
+            let timestamp = try container.decode(Double.self)
             self.date = Date(timeIntervalSince1970: timestamp)
             self.rawDate = .number(timestamp)
             return
         }
-        
-        // string formats
-        let dateString = try container.decode(String.self).trimmingCharacters(in: .whitespacesAndNewlines)
         self.rawDate = .string(dateString)
-        
+
+        if let date = Self.fastISODate(dateString) {
+            self.date = date
+            return
+        }
+
         // ISO8601 formatters
         for formatter in Self.isoFormatters {
             if let date = formatter.date(from: dateString) {
@@ -672,6 +681,114 @@ public struct DateParsed: Codable, Equatable, Hashable, Comparable, Sendable {
             in: container,
             debugDescription: "Failed to decode date from: \(dateString)"
         )
+    }
+
+    /// "2026-11-12", "2026-11-12T04:00:38Z", "2026-11-12 04:00:38", with or without seconds, a fraction of
+    /// a second and an offset ("Z", "+03:00", "+0300"). A time without an offset is UTC, as with the
+    /// formatters above. Anything else returns nil and is left to the formatters.
+    static func fastISODate(_ string: String) -> Date? {
+        var text = string
+        return text.withUTF8 { bytes -> Date? in
+            var index = 0
+
+            func number(_ count: Int) -> Int? {
+                guard index + count <= bytes.count else { return nil }
+                var value = 0
+                for _ in 0..<count {
+                    let byte = bytes[index]
+                    guard byte >= 48, byte <= 57 else { return nil }
+                    value = value * 10 + Int(byte - 48)
+                    index += 1
+                }
+                return value
+            }
+
+            func skip(_ byte: UInt8) -> Bool {
+                guard index < bytes.count, bytes[index] == byte else { return false }
+                index += 1
+                return true
+            }
+
+            // yyyy-MM-dd
+            guard
+                let year = number(4), skip(45),
+                let month = number(2), skip(45),
+                let day = number(2),
+                (1...12).contains(month),
+                day >= 1, day <= _days(inMonth: month, year: year)
+            else {
+                return nil
+            }
+
+            var seconds = 0.0
+            if index < bytes.count {
+                // "T", "t" or a space, then HH:mm
+                guard
+                    skip(84) || skip(116) || skip(32),
+                    let hour = number(2), skip(58),
+                    let minute = number(2),
+                    hour <= 23, minute <= 59
+                else {
+                    return nil
+                }
+                var second = 0
+                if skip(58) {
+                    guard let value = number(2), value <= 59 else { return nil }
+                    second = value
+                }
+                var fraction = 0.0
+                if skip(46) || skip(44) {
+                    var scale = 0.1
+                    var hasDigits = false
+                    while index < bytes.count, bytes[index] >= 48, bytes[index] <= 57 {
+                        fraction += Double(bytes[index] - 48) * scale
+                        scale /= 10
+                        index += 1
+                        hasDigits = true
+                    }
+                    guard hasDigits else { return nil }
+                }
+                seconds = Double(hour * 3600 + minute * 60 + second) + fraction
+
+                if skip(90) || skip(122) {
+                    // "Z": UTC
+                } else if index < bytes.count, bytes[index] == 43 || bytes[index] == 45 {
+                    let sign = bytes[index] == 45 ? -1 : 1
+                    index += 1
+                    guard let offsetHours = number(2), offsetHours <= 23 else { return nil }
+                    var offsetMinutes = 0
+                    if index < bytes.count {
+                        _ = skip(58)
+                        guard let value = number(2), value <= 59 else { return nil }
+                        offsetMinutes = value
+                    }
+                    seconds -= Double(sign * (offsetHours * 3600 + offsetMinutes * 60))
+                }
+                guard index == bytes.count else { return nil }
+            }
+
+            let days = _daysSince1970(year: year, month: month, day: day)
+            return Date(timeIntervalSince1970: Double(days) * 86_400 + seconds)
+        }
+    }
+
+    private static func _days(inMonth month: Int, year: Int) -> Int {
+        switch month {
+        case 2: return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 ? 29 : 28
+        case 4, 6, 9, 11: return 30
+        default: return 31
+        }
+    }
+
+    /// Days from 1970-01-01 to this date of the Gregorian calendar (Howard Hinnant's `days_from_civil`).
+    private static func _daysSince1970(year: Int, month: Int, day: Int) -> Int {
+        let y = month <= 2 ? year - 1 : year
+        let era = (y >= 0 ? y : y - 399) / 400
+        let yearOfEra = y - era * 400
+        let monthFromMarch = (month + 9) % 12
+        let dayOfYear = (153 * monthFromMarch + 2) / 5 + day - 1
+        let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
+        return era * 146_097 + dayOfEra - 719_468
     }
     
     public func encode(to encoder: Encoder) throws {
