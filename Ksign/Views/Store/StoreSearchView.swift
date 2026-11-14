@@ -13,6 +13,10 @@ struct StoreSearchView: View {
 	@ObservedObject private var _catalog = StoreCatalog.shared
 	@State private var _destination: StoreDestination?
 	@State private var _query = ""
+	/// Ofuq: the results are found off the main thread, a moment after typing stops (see `_search`).
+	@State private var _found: [StoreApp] = []
+	/// The query `_found` is for.
+	@State private var _foundQuery = ""
 
 	@FetchRequest(
 		entity: AltSource.entity(),
@@ -35,6 +39,10 @@ struct StoreSearchView: View {
 			.navigationTitle(String.localized("Search"))
 			.navigationBarTitleDisplayMode(.large)
 			.searchable(text: $_query, prompt: Text(String.localized("Apps, games and developers")))
+			// Again when the query changes or the catalog does (a source finished loading).
+			.task(id: "\(_trimmedQuery)\u{1}\(_catalog.apps.count)") {
+				await _search()
+			}
 			.toolbar {
 				ToolbarItem(placement: .navigationBarTrailing) {
 					StoreAccountButton(destination: $_destination)
@@ -150,8 +158,31 @@ struct StoreSearchView: View {
 
 	// MARK: Results
 
+	private func _search() async {
+		let query = _trimmedQuery
+		guard !query.isEmpty else {
+			_found = []
+			_foundQuery = ""
+			return
+		}
+		// Waits while typing: each letter cancels the search of the previous one.
+		if _foundQuery != "" {
+			try? await Task.sleep(nanoseconds: 150_000_000)
+		}
+		guard !Task.isCancelled else { return }
+
+		let apps = _catalog.apps
+		let results = await Task.detached(priority: .userInitiated) {
+			StoreCatalog.search(query, in: apps)
+		}.value
+		guard !Task.isCancelled else { return }
+		_found = results
+		_foundQuery = query
+	}
+
 	private var _results: some View {
-		let results = _catalog.search(_trimmedQuery)
+		let results = _found
+		let isCurrent = _foundQuery == _trimmedQuery
 
 		return List {
 			ForEach(results) { item in
@@ -164,7 +195,9 @@ struct StoreSearchView: View {
 		}
 		.listStyle(.plain)
 		.overlay {
-			if results.isEmpty {
+			if results.isEmpty, !isCurrent {
+				ProgressView()
+			} else if results.isEmpty {
 				StoreEmptyState(
 					symbol: "magnifyingglass",
 					title: .localized("No Results"),

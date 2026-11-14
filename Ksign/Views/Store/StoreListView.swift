@@ -85,10 +85,8 @@ struct StoreListView: View {
 		if let sourceName = _sourceName {
 			items = items.filter { $0.source.name == sourceName }
 		}
-		let query = StoreApp.fold(_query.trimmingCharacters(in: .whitespacesAndNewlines))
-		if !query.isEmpty {
-			items = items.filter { $0.matches(folded: query) }
-		}
+		// Ofuq: matching apps, best first (see StoreSearch); the sort below still applies when chosen.
+		items = StoreCatalog.search(_query, in: items)
 		switch _sort {
 		case .newest:
 			break

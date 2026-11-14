@@ -89,7 +89,11 @@ struct SourceAppsTableRepresentableView: UIViewRepresentable {
 
 // MARK: - Representable Extension: Coordinator
 extension SourceAppsTableRepresentableView { class Coordinator: NSObject, UITableViewDataSource, UITableViewDelegate, UITableViewDataSourcePrefetching {
-    var sources: [ASRepository]
+    var sources: [ASRepository] {
+        didSet { _searchFields = nil }
+    }
+    /// Ofuq: what the search looks at in each app (see StoreSearch), made on the first search of a list.
+    private var _searchFields: [StoreSearch.Fields]?
     var searchText: String
     var sortOption: SourceAppsView.SortOption
     var sortAscending: Bool
@@ -99,19 +103,22 @@ extension SourceAppsTableRepresentableView { class Coordinator: NSObject, UITabl
     private var _groupedAppsByDate: [String: [(source: ASRepository, app: ASRepository.App)]] = [:]
     private var _sortedSectionTitles: [String] = []
     
-    private var _cachedSortedApps: [(source: ASRepository, app: ASRepository.App)] = []
+    /// Ofuq: nil until computed. An empty list (a search without results) used to count as "not computed",
+    /// so the whole search ran again for every row and section the table asked about.
+    private var _cachedSortedApps: [(source: ASRepository, app: ASRepository.App)]?
     weak var uiTableView: UITableView?
-    
+
     private var _allAppsWithSource: [(source: ASRepository, app: ASRepository.App)] {
         sources.flatMap { source in source.apps.map { (source: source, app: $0) } }
     }
-    
+
     private var _sortedApps: [(source: ASRepository, app: ASRepository.App)] {
-        if !_cachedSortedApps.isEmpty {
-            return _cachedSortedApps
+        if let cached = _cachedSortedApps {
+            return cached
         }
-        _cachedSortedApps = _calculateSortedApps()
-        return _cachedSortedApps
+        let sorted = _calculateSortedApps()
+        _cachedSortedApps = sorted
+        return sorted
     }
     
     init(
@@ -133,21 +140,48 @@ extension SourceAppsTableRepresentableView { class Coordinator: NSObject, UITabl
         }
     }
     
-    private func _calculateSortedApps() -> [(source: ASRepository, app: ASRepository.App)] {
-        let filtered = _allAppsWithSource.filter {
-            searchText.isEmpty ||
-            ($0.app.name?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-            ($0.app.description?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-            ($0.app.subtitle?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-            ($0.app.localizedDescription?.localizedCaseInsensitiveContains(searchText) ?? false)
+    /// Ofuq: the apps that match the search, best first, as in the store (see StoreSearch): the name, then
+    /// the developer and the subtitle. Only when that finds few apps are the descriptions searched too
+    /// (they mention many other apps, and searching 17,000 of them on every letter was slow).
+    private func _search(_ all: [(source: ASRepository, app: ASRepository.App)]) -> [(source: ASRepository, app: ASRepository.App)] {
+        let text = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let query = StoreSearch.Query(text) else { return all }
+
+        let fields: [StoreSearch.Fields]
+        if let cached = _searchFields, cached.count == all.count {
+            fields = cached
+        } else {
+            fields = all.map { StoreSearch.Fields(app: $0.app, source: $0.source) }
+            _searchFields = fields
         }
-        
+
+        var found = StoreSearch.rank(Array(all.indices), by: query) { fields[$0] }
+        if found.count < 20, text.count >= 3 {
+            let already = Set(found)
+            for index in all.indices where !already.contains(index) {
+                let app = all[index].app
+                if
+                    (app.localizedDescription?.localizedCaseInsensitiveContains(text) ?? false) ||
+                    (app.description?.localizedCaseInsensitiveContains(text) ?? false)
+                {
+                    found.append(index)
+                }
+            }
+        }
+        return found.map { all[$0] }
+    }
+
+    private func _calculateSortedApps() -> [(source: ASRepository, app: ASRepository.App)] {
+        let isSearching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let filtered = _search(_allAppsWithSource)
+
         switch sortOption {
         case .default:
             _groupedAppsByDate = [:]
             _groupedAppsByNameFirstLetter = [:]
             _sortedSectionTitles = []
-            return sortAscending ? filtered : filtered.reversed()
+            // While searching, the best matches stay first whatever the direction.
+            return sortAscending || isSearching ? filtered : filtered.reversed()
         case .date:
             let sorted = filtered.sorted {
                 let d1 = $0.app.currentDate?.date ?? .distantPast

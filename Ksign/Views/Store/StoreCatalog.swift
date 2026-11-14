@@ -21,9 +21,8 @@ struct StoreApp: Identifiable, Hashable {
 	/// Every category the app belongs to, the main one first.
 	let categories: [StoreCategory]
 	var isFeatured: Bool
-	/// Name, developer, subtitle, identifier, source and categories, folded for searching
-	/// (no case, no accents or Arabic diacritics). Built once, off the main thread.
-	let searchKey: String
+	/// What the search looks at (see StoreSearch). Built once, off the main thread.
+	let search: StoreSearch.Fields
 
 	init(
 		source: ASRepository,
@@ -37,22 +36,11 @@ struct StoreApp: Identifiable, Hashable {
 		let classification = classification ?? StoreCategory.classify(app)
 		self.isGame = classification.isGame
 		self.categories = classification.categories
-
-		var parts: [String] = [app.currentName]
-		for field in [app.developer, app.subtitle, app.id, source.name] {
-			if let field, !field.isEmpty {
-				parts.append(field)
-			}
-		}
-		for category in classification.categories {
-			parts.append(category.title)
-		}
-		self.searchKey = Self.fold(parts.joined(separator: "\u{1}"))
-	}
-
-	/// Lowercased, without accents or Arabic diacritics: how both the query and `searchKey` are compared.
-	static func fold(_ text: String) -> String {
-		text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
+		self.search = StoreSearch.Fields(
+			app: app,
+			source: source,
+			categories: classification.categories.map(\.title)
+		)
 	}
 
 	var id: String { app.currentUniqueId }
@@ -107,18 +95,6 @@ struct StoreApp: Identifiable, Hashable {
 		categories.contains(category)
 	}
 
-	func matches(_ query: String) -> Bool {
-		let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-		if query.isEmpty {
-			return true
-		}
-		return matches(folded: Self.fold(query))
-	}
-
-	/// `query` already passed through `fold`: lets a search over thousands of apps fold it only once.
-	func matches(folded query: String) -> Bool {
-		query.isEmpty || searchKey.contains(query)
-	}
 
 	static func == (lhs: StoreApp, rhs: StoreApp) -> Bool {
 		lhs.id == rhs.id
@@ -632,9 +608,14 @@ final class StoreCatalog: ObservableObject {
 	}
 
 	func search(_ query: String) -> [StoreApp] {
-		let folded = StoreApp.fold(query.trimmingCharacters(in: .whitespacesAndNewlines))
-		guard !folded.isEmpty else { return apps }
-		return apps.filter { $0.matches(folded: folded) }
+		Self.search(query, in: apps)
+	}
+
+	/// The apps of `items` that match `query`, best first (see StoreSearch); all of them for an empty query.
+	/// Safe off the main thread.
+	static func search(_ query: String, in items: [StoreApp]) -> [StoreApp] {
+		guard let query = StoreSearch.Query(query) else { return items }
+		return StoreSearch.rank(items, by: query) { $0.search }
 	}
 
 	/// By download count when the sources give it, otherwise featured apps first.
@@ -776,8 +757,10 @@ final class StoreCatalog: ObservableObject {
 					isFeatured: isFeatured,
 					classification: _classification(for: app)
 				)
-				// The same app can be listed by several sources: keep its newest release.
-				let key = app.id ?? item.id
+				// The same app can be listed by several sources: keep its newest release. Ofuq: it is the same
+				// app when the bundle ID and the name match. Some sources give one bundle ID to hundreds of
+				// different apps (291 apps of one source share "com.karbinstoree"), which all became one.
+				let key = (app.id ?? item.id) + "\u{1}" + StoreSearch.normalizedName(app.currentName)
 				if let existing = byKey[key] {
 					let newer = (item.date ?? .distantPast) > (existing.date ?? .distantPast)
 					var keep = newer ? item : existing
@@ -789,7 +772,12 @@ final class StoreCatalog: ObservableObject {
 			}
 		}
 
-		let sorted = byKey.values.sorted { lhs, rhs in
+		// Two entries for one download link (the same file listed under two names) would share an `id`,
+		// which the lists use to tell rows apart: keep one.
+		var seenIDs = Set<String>()
+		let unique = byKey.values.filter { seenIDs.insert($0.id).inserted }
+
+		let sorted = unique.sorted { lhs, rhs in
 			let left = lhs.date ?? .distantPast
 			let right = rhs.date ?? .distantPast
 			if left != right {
